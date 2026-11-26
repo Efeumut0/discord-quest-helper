@@ -19,9 +19,9 @@ test('source export keeps code and excludes working notes and office files', () 
         const fixture = join(temporary, 'project');
         exportSource(exporter, fixture);
         const excluded = [
-            'src/AI_HANDOFF.md',
-            'src/CODEX_HANDOFF.md',
-            'src/AGENTS.md',
+            'src/WORKING_NOTES.md',
+            'src/PROJECT_HANDOFF.md',
+            'src/INTERNAL.md',
             'src/discord-api-research-2026-11-26.md',
             'src/discord-api-evidence-2026-11-26.json',
             'src/imported-data.xlsx',

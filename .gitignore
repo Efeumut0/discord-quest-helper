@@ -41,15 +41,10 @@ verify.ps1
 package-lock.json
 split.cjs
 
-.agents/
-.codex/
-.claude/
-AGENTS.md
-CLAUDE.md
-GEMINI.md
-AI_HANDOFF.md
-AI_NOTES.md
-CODEX_HANDOFF.md
+.*/
+!.github/
+*HANDOFF*.md
+*NOTES*.md
 **/*-research-*.md
 **/*-evidence-*.json
 docs/internal/
