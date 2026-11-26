@@ -56,7 +56,13 @@ if (-not $PackageOnly) {
     if ($Portable) {
         Invoke-Step 'Build portable application' { corepack pnpm tauri build --no-bundle }
     } elseif ($Unsigned) {
-        Invoke-Step 'Build validation setup' { corepack pnpm tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}' }
+        $ValidationConfig = Join-Path ([IO.Path]::GetTempPath()) ("dqh-validation-" + [guid]::NewGuid().ToString('N') + '.json')
+        [IO.File]::WriteAllText($ValidationConfig, '{"bundle":{"createUpdaterArtifacts":false}}')
+        try {
+            Invoke-Step 'Build validation setup' { corepack pnpm tauri build --bundles nsis --config $ValidationConfig }
+        } finally {
+            Remove-Item -LiteralPath $ValidationConfig -ErrorAction SilentlyContinue
+        }
     } else {
         Invoke-Step 'Build signed setup' { corepack pnpm tauri build --bundles nsis }
     }
