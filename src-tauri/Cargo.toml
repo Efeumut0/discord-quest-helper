@@ -1,6 +1,6 @@
 [package]
 name = "discord-quest-helper"
-version = "2026.11.2601"
+version = "2026.11.2602"
 description = "Discord Quest Helper"
 authors = ["efeumut"]
 edition = "2021"
