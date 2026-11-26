@@ -45,6 +45,7 @@ if (-not $PackageOnly) {
     if (-not $SkipInstall) {
         Invoke-Step 'Install frontend dependencies' { corepack pnpm install --frozen-lockfile }
     }
+    Invoke-Step 'Validate Tauri package versions' { node scripts/check-tauri-versions.mjs }
     Invoke-Step 'Check runner formatting' { cargo fmt --manifest-path src-win/Cargo.toml --check }
     Invoke-Step 'Test runner' { cargo test --manifest-path src-win/Cargo.toml --locked }
     Invoke-Step 'Lint runner' { cargo clippy --manifest-path src-win/Cargo.toml --all-targets --locked -- -D warnings }
@@ -54,17 +55,17 @@ if (-not $PackageOnly) {
     Invoke-Step 'Test backend' { cargo test --manifest-path src-tauri/Cargo.toml --locked }
     Invoke-Step 'Lint backend' { cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings }
     if ($Portable) {
-        Invoke-Step 'Build portable application' { corepack pnpm tauri build --no-bundle }
+        Invoke-Step 'Build portable application' { corepack pnpm tauri build --ci --no-bundle }
     } elseif ($Unsigned) {
         $ValidationConfig = Join-Path ([IO.Path]::GetTempPath()) ("dqh-validation-" + [guid]::NewGuid().ToString('N') + '.json')
         [IO.File]::WriteAllText($ValidationConfig, '{"bundle":{"createUpdaterArtifacts":false}}')
         try {
-            Invoke-Step 'Build validation setup' { corepack pnpm tauri build --bundles nsis --config $ValidationConfig }
+            Invoke-Step 'Build validation setup' { corepack pnpm tauri build --ci --bundles nsis --config $ValidationConfig }
         } finally {
             Remove-Item -LiteralPath $ValidationConfig -ErrorAction SilentlyContinue
         }
     } else {
-        Invoke-Step 'Build signed setup' { corepack pnpm tauri build --bundles nsis }
+        Invoke-Step 'Build signed setup' { corepack pnpm tauri build --ci --bundles nsis }
     }
 }
 

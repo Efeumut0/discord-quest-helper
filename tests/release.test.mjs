@@ -6,6 +6,12 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { nextVersion, releaseDate, updateManifest } from '../scripts/release.mjs';
+import { assertCompatible } from '../scripts/check-tauri-versions.mjs';
+
+test('Tauri preflight rejects mismatched plugin minor versions', () => {
+    assert.throws(() => assertCompatible('dialog', '2.2.2', '2.4.0'), /same major\/minor/);
+    assert.doesNotThrow(() => assertCompatible('tauri', '2.12.7', '2.12.5'));
+});
 
 test('release date follows Istanbul time rather than the runner timezone', () => {
     assert.equal(releaseDate(new Date('2026-11-25T22:15:00Z')), '2026-11-26');
