@@ -7,10 +7,10 @@ For a pull request, explain what changes for the user and how you tested it. Kee
 On Windows with the prerequisites listed in README, run:
 
 ```powershell
-pwsh -File scripts/build.ps1
+pwsh -File scripts/build.ps1 -Unsigned
 ```
 
-This checks formatting, runs runner/backend and source-selection tests, checks Clippy, and builds the portable app. For behavior changes, include a regression test that exercises the affected flow. Explain any checks you could not run.
+This checks formatting, runs runner/backend and release-tool tests, checks Clippy, and builds a test installer. Official release builds require the private updater signing key; contributor builds use `-Unsigned`. For behavior changes, include a regression test that exercises the affected flow. Explain any checks you could not run.
 
 Source 1 uses catalog executable names; Source 2 uses RPC for profile display. Keep that distinction clear in code and UI text.
 

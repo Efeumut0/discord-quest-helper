@@ -2,6 +2,9 @@ export type AppLanguage = 'en' | 'tr'
 
 export const TRANSLATIONS: Record<AppLanguage, Record<string, string>> = {
     en: {
+        'updates.downloading': 'Downloading update {version} in the background…',
+        'updates.installing': 'Installing update {version}. The app will reopen shortly.',
+        'updates.failed': 'Update unavailable; the app can still be used',
         'playground.testDetails': 'Testing Discord Rich Presence',
         'playground.testState': 'Discord Quest Helper RPC test',
         'nav.home': 'Home',
@@ -205,6 +208,9 @@ export const TRANSLATIONS: Record<AppLanguage, Record<string, string>> = {
         'common.sortId': 'ID',
     },
     tr: {
+        'updates.downloading': '{version} güncellemesi arka planda indiriliyor…',
+        'updates.installing': '{version} güncellemesi yükleniyor. Uygulama birazdan yeniden açılacak.',
+        'updates.failed': 'Güncelleme alınamadı; uygulamayı kullanmaya devam edebilirsiniz',
         'playground.testDetails': 'Discord Rich Presence test ediliyor',
         'playground.testState': 'Discord Quest Helper RPC testi',
         'nav.home': 'Ana Sayfa',

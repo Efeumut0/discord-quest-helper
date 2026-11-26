@@ -2,9 +2,21 @@
 import { Pages, useGlobalState } from '@/composables/state';
 import IconRustLang from './IconRustLang.vue';
 import IconVueJs from './IconVueJs.vue';
+import UpdateNotice from './UpdateNotice.vue';
+import { getVersion } from '@tauri-apps/api/app';
+import { onMounted, shallowRef } from 'vue';
 
 const appState = useGlobalState();
 const { page, setPage, t } = appState;
+const version = shallowRef('');
+const releaseDate = shallowRef('');
+onMounted(async () => {
+  try {
+    version.value = await getVersion();
+    const [year, month, patch] = version.value.split('.').map(Number);
+    releaseDate.value = `${String(Math.floor(patch / 100)).padStart(2, '0')}.${String(month).padStart(2, '0')}.${year}`;
+  } catch { /* The main interface remains usable if version metadata is unavailable. */ }
+});
 </script>
 
 <template>
@@ -76,13 +88,15 @@ const { page, setPage, t } = appState;
       </div>
     </header>
 
+    <UpdateNotice />
     <main class="min-h-0 flex-grow overflow-y-auto">
       <slot></slot>
     </main>
 
     <footer class="shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto">
       <div class="app-frame py-4 text-center text-sm text-gray-600 dark:text-gray-400">
-        <span>2026 {{ t('footer.builtWith') }}</span>
+        <span v-if="version">v{{ version }} · {{ releaseDate }} · </span>
+        <span>{{ t('footer.builtWith') }}</span>
         <IconRustLang class="inline-block h-4 w-4 text-red-200 dark:text-white mx-0.5" />
         <span>Rust, Tauri,</span>
         <IconVueJs class="h-4 w-4 inline-block text-[#4FC08D] mx-0.5" />

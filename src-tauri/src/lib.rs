@@ -12,6 +12,7 @@ use tauri::{AppHandle, Emitter};
 
 mod rpc;
 mod runner;
+mod updates;
 
 const SEARCH_PRIORITY_TARGET_DEFAULT_COUNT: u32 = 2000;
 const SEARCH_PRIORITY_TARGET_MIN_COUNT: u32 = 100;
@@ -645,11 +646,25 @@ fn get_bulk_task_running() -> &'static Mutex<bool> {
 }
 
 fn get_app_dir() -> Result<PathBuf, String> {
-    let exe_path = env::current_exe().map_err(|e| format!("Failed to get current exe: {}", e))?;
-    Ok(exe_path
-        .parent()
-        .unwrap_or_else(|| Path::new(""))
-        .to_path_buf())
+    #[cfg(target_os = "windows")]
+    {
+        let base = env::var_os("LOCALAPPDATA")
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| "Windows local data directory is unavailable".to_string())?;
+        let directory = PathBuf::from(base).join("DiscordQuestHelper");
+        std::fs::create_dir_all(&directory)
+            .map_err(|error| format!("Could not create application data directory: {error}"))?;
+        Ok(directory)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let exe_path =
+            env::current_exe().map_err(|e| format!("Failed to get current exe: {}", e))?;
+        Ok(exe_path
+            .parent()
+            .unwrap_or_else(|| Path::new(""))
+            .to_path_buf())
+    }
 }
 
 fn restore_embedded_file_if_missing(
@@ -1115,7 +1130,7 @@ async fn fetch_active_desktop_quests(
 ) -> Result<(Vec<ActiveQuestInfo>, Vec<String>, Vec<String>), String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(25))
-        .user_agent("DiscordQuestHelper/25.11.0")
+        .user_agent(concat!("DiscordQuestHelper/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| format!("Quest client could not be created: {e}"))?;
     let sources = [
@@ -3253,7 +3268,7 @@ async fn fetch_gamelist_from_discord() -> Result<String, String> {
 
 async fn fetch_detectable_games() -> Result<String, String> {
     let client = tauri_plugin_http::reqwest::Client::builder()
-        .user_agent("DiscordQuestHelper/25.11.0")
+        .user_agent(concat!("DiscordQuestHelper/", env!("CARGO_PKG_VERSION")))
         .timeout(Duration::from_secs(30))
         .build()
         .map_err(|e| format!("Failed to create game list client: {}", e))?;
@@ -3281,10 +3296,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
-        .setup(|_app| {
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updates::State::new(updates::UpdateStatus::default()))
+        .setup(|app| {
             if let Ok(app_dir) = get_app_dir() {
                 let _ = ensure_embedded_base_files(&app_dir);
             }
+            updates::start(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -3310,6 +3328,7 @@ pub fn run() {
             refresh_search_priority,
             fetch_gamelist_gh_mirror,
             fetch_gamelist_from_discord,
+            updates::get_update_status,
         ])
         .run(tauri::generate_context!())
     {

@@ -11,7 +11,7 @@ try {
 } catch (error) {
   if (error.code !== 'ENOENT') throw error;
 }
-const directories = ['src', 'src-tauri/src', 'src-tauri/icons', 'src-tauri/capabilities', 'src-win/src', 'src-win/tests', 'public', 'scripts', '.github', 'tests'];
+const directories = ['src', 'src-tauri/src', 'src-tauri/examples', 'src-tauri/icons', 'src-tauri/capabilities', 'src-win/src', 'src-win/tests', 'public', 'scripts', '.github', 'tests'];
 const files = ['LICENSE', 'README.md', 'README.tr.md', 'CONTRIBUTING.md', 'SECURITY.md', '.gitattributes', '.gitignore', 'package.json', 'pnpm-lock.yaml', 'index.html', 'tsconfig.json', 'tsconfig.node.json', 'vite.config.ts', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'src-tauri/build.rs', 'src-tauri/tauri.conf.json', 'src-tauri/.gitignore', 'src-win/Cargo.toml', 'src-win/Cargo.lock', 'src-win/build.rs', 'src-win/embed_icon.rc', 'src-win/icon.ico', 'src-win/README.md', 'src-win/.gitignore'];
 const retired = new Set(['seal.rs', 'license_admin.rs', 'main_with_tray_icon.rs', 'tauri.svg', 'vite.svg', 'vue.svg']);
 const blockedDirs = new Set(['node_modules', 'target', 'dist', '.git', 'secrets', 'data', 'metadata', 'games', 'gen', 'license-runtime', 'seal-core', '.agents', '.codex', '.claude']);

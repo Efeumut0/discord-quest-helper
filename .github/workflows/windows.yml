@@ -1,4 +1,4 @@
-name: Windows portable build
+name: Windows setup checks
 
 on:
   push:
@@ -9,9 +9,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: windows-checks-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,9 +32,9 @@ jobs:
             src-tauri
       - name: Enable package manager
         run: corepack enable
-      - name: Test and build portable EXE
+      - name: Test and build setup
         shell: pwsh
-        run: ./scripts/build.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiscordQuestHelper-release"
+        run: ./scripts/build.ps1 -Unsigned -OutputDirectory "$env:RUNNER_TEMP/DiscordQuestHelper-release"
       - uses: actions/upload-artifact@v4
         with:
           name: DiscordQuestHelper-windows-x64

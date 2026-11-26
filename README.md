@@ -18,9 +18,9 @@ Source 1 uses executable names from Discord's catalog. Source 2 uses estimated n
 
 ## Download and run
 
-Download the Windows x64 ZIP from [Releases](https://github.com/Efeumut0/discord-quest-helper/releases), extract it into a writable folder, and open `DiscordQuestHelper.exe`. The helper doesn't ask for your Discord account token.
+Download the Windows x64 `setup.exe` from [Releases](https://github.com/Efeumut0/discord-quest-helper/releases), run it and open Discord Quest Helper from the Start menu. Setup installs for your Windows account. The helper doesn't ask for your Discord account token.
 
-Requirements: Windows x64, Microsoft Edge WebView2 Runtime, and the Discord desktop app running and signed in when using Discord integration.
+Requirements: Windows x64 and the Discord desktop app running and signed in. Setup installs Microsoft Edge WebView2 Runtime if it is missing.
 
 1. Accept a supported play-time quest in Discord.
 2. Search for its game in Discord Quest Helper.
@@ -28,7 +28,9 @@ Requirements: Windows x64, Microsoft Edge WebView2 Runtime, and the Discord desk
 4. Create and start the helper; check progress in Discord itself.
 5. Stop the helper when finished. A visible RPC activity alone does not confirm progress.
 
-Generated files are stored beside the app in `games/<application-id>/`. Runtime folders such as `metadata/`, `data/`, and `resources/` are created as needed. Keep them out of source control. The app does not include an automatic updater.
+Generated files are stored in `%LOCALAPPDATA%/DiscordQuestHelper/games/<application-id>/`. Metadata and cache folders stay in the same data directory, separate from the installed application.
+
+The app checks for updates on startup. A newer GitHub release is downloaded, its signature is verified, and the per-user installer runs in the background. The app closes briefly and reopens. A failed update check does not block normal use.
 
 ## Build from source
 
@@ -36,17 +38,23 @@ Build on Windows x64 with PowerShell 7, Node.js 22, Corepack, stable Rust, and V
 
 ```powershell
 corepack enable
-pwsh -File scripts/build.ps1
+pwsh -File scripts/build.ps1 -Unsigned
 ```
 
-The script runs formatting checks, tests and Clippy, builds the runner, embeds it, and creates a portable Tauri release. Default output: `../discord-quest-helper-win32-x64/DiscordQuestHelper.exe` with `SHA256SUMS.txt`. Dated source folders preserve their date suffix in the sibling distribution folder.
+The script runs formatting checks, tests and Clippy, builds the runner, and creates an NSIS setup. Default output: `../Discord Quest Helper Releases/<version>/`. `-Unsigned` is for local testing and CI; official releases also require the updater signing key.
 
 ```powershell
 # Optional output outside the source tree
-pwsh -File scripts/build.ps1 -OutputDirectory C:/builds/discord-quest-helper
+pwsh -File scripts/build.ps1 -Unsigned -OutputDirectory C:/builds/discord-quest-helper
 ```
 
-Use the Tauri build script for distribution: `cargo build --release` alone does not build/embed the frontend correctly. No installer is produced.
+Use the Tauri build script for distribution: `cargo build --release` alone does not build/embed the frontend or produce setup files.
+
+## Releases
+
+Run **Publish Windows release** from the Actions tab on `main`. It chooses an Istanbul calendar date, runs all checks, builds and signs setup, generates `latest.json` and checksums, then publishes a complete release. Each release includes installation and usage instructions. Failed builds do not publish an update.
+
+Versions use `year.month.(day × 100 + daily sequence)`: `2026.11.2601` is the first release on 26 November 2026. The full date is shown separately in the app and Release title. Signing credentials belong in GitHub Secrets, never in the repository.
 
 ## Project layout
 

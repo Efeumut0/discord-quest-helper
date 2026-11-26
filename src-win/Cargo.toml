@@ -1,6 +1,6 @@
 [package]
 name = "src-win"
-version = "25.11.0"
+version = "2026.11.2601"
 edition = "2021"
 
 [dependencies]
