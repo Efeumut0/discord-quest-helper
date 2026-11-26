@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
 
+mod promo_presence;
 mod rpc;
 mod runner;
 mod updates;
@@ -3298,11 +3299,15 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updates::State::new(updates::UpdateStatus::default()))
+        .manage(promo_presence::State::new(
+            promo_presence::PromoStatus::default(),
+        ))
         .setup(|app| {
             if let Ok(app_dir) = get_app_dir() {
                 let _ = ensure_embedded_base_files(&app_dir);
             }
             updates::start(app.handle().clone());
+            promo_presence::start(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -3329,6 +3334,8 @@ pub fn run() {
             fetch_gamelist_gh_mirror,
             fetch_gamelist_from_discord,
             updates::get_update_status,
+            promo_presence::set_promo_presence,
+            promo_presence::get_promo_presence_status,
         ])
         .run(tauri::generate_context!())
     {

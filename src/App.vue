@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, type Component } from 'vue';
+import { computed, nextTick, onMounted, type Component } from 'vue';
 import MainLayout from './components/MainLayout.vue';
 import { Pages, useGlobalState } from './composables/state';
 import BulkCreateView from './pages/BulkCreateView.vue';
@@ -9,6 +9,7 @@ import HomeView from './pages/HomeView.vue';
 import Playground from './pages/Playground.vue';
 import SettingsView from './pages/SettingsView.vue';
 import { useNewGames } from './composables/new-games';
+import { usePromoPresence } from './composables/promo-presence';
 
 const appState = useGlobalState();
 const { page } = appState;
@@ -17,6 +18,7 @@ const {
   isModalOpen: isNewGamesModalOpen,
   closeNewGamesModal,
 } = useNewGames();
+const { start: startPromoPresence } = usePromoPresence();
 const visibleNewGames = computed(() => newlyDetectedGames.value.slice(0, 12));
 const pageComponents: Record<Pages, Component> = {
   [Pages.HOME]: HomeView,
@@ -28,6 +30,10 @@ const pageComponents: Record<Pages, Component> = {
 };
 
 const currentPageComponent = computed(() => pageComponents[page.value]);
+
+onMounted(() => {
+  void startPromoPresence();
+});
 
 async function openNewGamesInSettings() {
   closeNewGamesModal();

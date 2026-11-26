@@ -47,6 +47,8 @@ export interface UseGlobalStateReturn {
     setTheme: (newTheme: AppTheme) => void,
     searchPriorityTargetCount: ShallowRef<number>,
     setSearchPriorityTargetCount: (newCount: number) => void,
+    promoPresence: ShallowRef<boolean>,
+    setPromoPresence: (enabled: boolean) => void,
     t: (key: string) => string,
 }
 export const useGlobalState = createGlobalState(
@@ -61,6 +63,9 @@ export const useGlobalState = createGlobalState(
     const searchPriorityTargetCount = shallowRef(
       clampSearchPriorityTargetCount(savedSearchPriorityTargetCount || SEARCH_PRIORITY_TARGET_DEFAULT),
     )
+
+    // Promotional Rich Presence is on unless the user turned it off.
+    const promoPresence = shallowRef<boolean>(localStorage.getItem('promo-presence') !== 'off')
 
     const logs = shallowRef<AppLogObject[]>([])
 
@@ -83,6 +88,11 @@ export const useGlobalState = createGlobalState(
       const normalizedCount = clampSearchPriorityTargetCount(newCount)
       searchPriorityTargetCount.value = normalizedCount
       localStorage.setItem('search-priority-target-count', String(normalizedCount))
+    }
+
+    function setPromoPresence(enabled: boolean) {
+      promoPresence.value = enabled
+      localStorage.setItem('promo-presence', enabled ? 'on' : 'off')
     }
 
     function t(key: string) {
@@ -114,6 +124,8 @@ export const useGlobalState = createGlobalState(
         setTheme,
         searchPriorityTargetCount,
         setSearchPriorityTargetCount,
+        promoPresence,
+        setPromoPresence,
         t
     } as UseGlobalStateReturn
   }
