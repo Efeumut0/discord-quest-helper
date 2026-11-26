@@ -1384,7 +1384,7 @@ dependencies = [
 
 [[package]]
 name = "src-win"
-version = "2026.11.2602"
+version = "2026.11.2603"
 dependencies = [
  "discord-sdk",
  "embed-resource",

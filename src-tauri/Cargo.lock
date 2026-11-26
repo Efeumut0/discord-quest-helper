@@ -940,7 +940,7 @@ dependencies = [
 
 [[package]]
 name = "discord-quest-helper"
-version = "2026.11.2602"
+version = "2026.11.2603"
 dependencies = [
  "base64 0.23.1",
  "chrono",
