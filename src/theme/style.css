@@ -1,0 +1,247 @@
+@import "tailwindcss";
+
+.app-frame {
+    width: min(calc(100% - clamp(1.5rem, 4vw, 4rem)), 74rem);
+    margin-inline: auto;
+}
+
+.app-page {
+    box-sizing: border-box;
+    width: min(calc(100% - clamp(1.5rem, 4vw, 4rem)), 68rem);
+    min-height: 100%;
+    margin-inline: auto;
+    padding-block: clamp(1rem, 3.2vh, 2rem);
+}
+
+.app-page-wide {
+    width: min(calc(100% - clamp(1.5rem, 3vw, 3rem)), 78rem);
+}
+
+.app-page-full {
+    display: flex;
+    min-height: 100%;
+}
+
+.home-panel {
+    min-height: clamp(280px, 46vh, 360px);
+}
+
+@media (max-width: 760px) {
+    .app-frame,
+    .app-page,
+    .app-page-wide {
+        width: min(calc(100% - 2rem), 58rem);
+    }
+}
+
+@media (max-height: 760px) {
+    .app-page {
+        padding-block: 1rem;
+    }
+
+    .home-panel {
+        min-height: clamp(220px, 40vh, 300px);
+    }
+}
+
+html.theme-custom,
+html.theme-custom body {
+    background: var(--app-bg);
+    color: var(--app-text);
+}
+
+html.theme-dark {
+    color-scheme: dark;
+    --app-bg: #05070b;
+    --app-surface: #111827;
+    --app-control: #1f2937;
+    --app-elevated: #263244;
+    --app-border: #334155;
+    --app-text: #f8fafc;
+    --app-muted: #cbd5e1;
+    --app-soft: #94a3b8;
+    --app-accent: #7c3aed;
+    --app-accent-hover: #8b5cf6;
+    --app-accent-soft: rgba(124, 58, 237, 0.18);
+}
+
+html.theme-light {
+    color-scheme: light;
+    --app-bg: #f7f8fb;
+    --app-surface: #ffffff;
+    --app-control: #eef1f6;
+    --app-elevated: #e6eaf2;
+    --app-border: #d8deea;
+    --app-text: #111827;
+    --app-muted: #4b5563;
+    --app-soft: #6b7280;
+    --app-accent: #4f46e5;
+    --app-accent-hover: #4338ca;
+    --app-accent-soft: rgba(79, 70, 229, 0.12);
+}
+
+html.theme-purple {
+    color-scheme: dark;
+    --app-bg: #160f27;
+    --app-surface: #21173a;
+    --app-control: #2d214b;
+    --app-elevated: #3b2d5f;
+    --app-border: #4a3a70;
+    --app-text: #fbf7ff;
+    --app-muted: #d6c9f0;
+    --app-soft: #b9a7dd;
+    --app-accent: #a78bfa;
+    --app-accent-hover: #c4b5fd;
+    --app-accent-soft: rgba(167, 139, 250, 0.18);
+}
+
+html.theme-blue {
+    color-scheme: dark;
+    --app-bg: #071525;
+    --app-surface: #0d2239;
+    --app-control: #12304f;
+    --app-elevated: #193f66;
+    --app-border: #245274;
+    --app-text: #f1f8ff;
+    --app-muted: #c1d8ef;
+    --app-soft: #90b7d8;
+    --app-accent: #38bdf8;
+    --app-accent-hover: #7dd3fc;
+    --app-accent-soft: rgba(56, 189, 248, 0.16);
+}
+
+html.theme-green {
+    color-scheme: dark;
+    --app-bg: #061b15;
+    --app-surface: #0c2a22;
+    --app-control: #123d31;
+    --app-elevated: #1a5142;
+    --app-border: #2c6a58;
+    --app-text: #f0fff9;
+    --app-muted: #c1eadc;
+    --app-soft: #8fd0bb;
+    --app-accent: #34d399;
+    --app-accent-hover: #6ee7b7;
+    --app-accent-soft: rgba(52, 211, 153, 0.16);
+}
+
+html.theme-red {
+    color-scheme: dark;
+    --app-bg: #230d13;
+    --app-surface: #33141d;
+    --app-control: #451c2a;
+    --app-elevated: #5a2636;
+    --app-border: #743349;
+    --app-text: #fff5f7;
+    --app-muted: #f3c2cf;
+    --app-soft: #dfa0b2;
+    --app-accent: #fb7185;
+    --app-accent-hover: #fda4af;
+    --app-accent-soft: rgba(251, 113, 133, 0.16);
+}
+
+html.theme-custom .bg-gray-100,
+html.theme-custom .dark\:bg-gray-900 {
+    background-color: var(--app-bg) !important;
+}
+
+html.theme-custom .bg-white,
+html.theme-custom .dark\:bg-gray-800 {
+    background-color: var(--app-surface) !important;
+}
+
+html.theme-custom .bg-gray-50,
+html.theme-custom .bg-gray-200,
+html.theme-custom .bg-gray-300,
+html.theme-custom .bg-gray-700,
+html.theme-custom .dark\:bg-gray-700 {
+    background-color: var(--app-control) !important;
+}
+
+html.theme-custom .bg-gray-600,
+html.theme-custom .dark\:bg-gray-600,
+html.theme-custom .hover\:bg-gray-500:hover,
+html.theme-custom .hover\:bg-gray-600:hover,
+html.theme-custom .dark\:hover\:bg-gray-500:hover,
+html.theme-custom .dark\:hover\:bg-gray-600:hover,
+html.theme-custom .dark\:hover\:bg-gray-700:hover {
+    background-color: var(--app-elevated) !important;
+}
+
+html.theme-custom .bg-indigo-50,
+html.theme-custom .dark\:bg-indigo-500\/10 {
+    background-color: var(--app-accent-soft) !important;
+}
+
+html.theme-custom .bg-indigo-600,
+html.theme-custom .hover\:bg-indigo-500:hover,
+html.theme-custom .hover\:bg-indigo-600:hover,
+html.theme-custom .hover\:bg-indigo-700:hover {
+    background-color: var(--app-accent) !important;
+}
+
+html.theme-custom .hover\:bg-indigo-500:hover,
+html.theme-custom .hover\:bg-indigo-600:hover,
+html.theme-custom .hover\:bg-indigo-700:hover {
+    background-color: var(--app-accent-hover) !important;
+}
+
+html.theme-custom input,
+html.theme-custom select,
+html.theme-custom textarea {
+    background-color: var(--app-control) !important;
+    border-color: var(--app-border) !important;
+    color: var(--app-text) !important;
+}
+
+html.theme-custom input::placeholder,
+html.theme-custom textarea::placeholder {
+    color: var(--app-soft) !important;
+}
+
+html.theme-custom .text-gray-900,
+html.theme-custom .text-gray-800,
+html.theme-custom .dark\:text-white {
+    color: var(--app-text) !important;
+}
+
+html.theme-custom .text-gray-700,
+html.theme-custom .text-gray-600,
+html.theme-custom .text-gray-500,
+html.theme-custom .text-gray-400,
+html.theme-custom .dark\:text-gray-300,
+html.theme-custom .dark\:text-gray-400 {
+    color: var(--app-muted) !important;
+}
+
+html.theme-custom .text-indigo-500,
+html.theme-custom .text-indigo-600,
+html.theme-custom .dark\:text-indigo-300,
+html.theme-custom .dark\:text-indigo-400,
+html.theme-custom .hover\:text-indigo-600:hover,
+html.theme-custom .dark\:hover\:text-indigo-400:hover {
+    color: var(--app-accent-hover) !important;
+}
+
+html.theme-custom .border-gray-200,
+html.theme-custom .border-gray-300,
+html.theme-custom .border-gray-600,
+html.theme-custom .border-gray-700,
+html.theme-custom .dark\:border-gray-600,
+html.theme-custom .dark\:border-gray-700 {
+    border-color: var(--app-border) !important;
+}
+
+html.theme-custom .border-indigo-500,
+html.theme-custom .focus\:border-indigo-500:focus {
+    border-color: var(--app-accent) !important;
+}
+
+html.theme-custom .focus\:ring-indigo-500:focus {
+    --tw-ring-color: var(--app-accent) !important;
+}
+
+html.theme-custom .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+html.theme-custom .dark\:divide-gray-700 > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--app-border) !important;
+}

@@ -1,0 +1,41 @@
+{
+  "name": "discord-quest-helper",
+  "description": "Discord Quest Helper",
+  "private": true,
+  "version": "25.11.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "build:runner:win": "cd ./src-win && cargo build --release",
+    "copy:runner:win": "node -e \"const fs=require('fs'); fs.mkdirSync('./src-tauri/resources',{recursive:true}); fs.copyFileSync('./src-win/target/release/src-win.exe','./src-tauri/resources/src-win.exe');\"",
+    "sync:runner": "corepack pnpm run build:runner:win && corepack pnpm run copy:runner:win",
+    "build:all": "corepack pnpm run sync:runner && corepack pnpm tauri build",
+    "tauri:dev": "tauri dev",
+    "test": "node --test tests/*.test.mjs",
+    "export:source": "node scripts/export-source.mjs"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.1",
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-dialog": "~2",
+    "@tauri-apps/plugin-opener": "^2",
+    "@vueuse/core": "^13.1.0",
+    "@vueuse/integrations": "^13.9.0",
+    "@lucide/vue": "^1.0.0",
+    "fuse.js": "^7.1.0",
+    "nanoid": "^5.1.5",
+    "tailwindcss": "^4.3.1",
+    "vue": "^3.5.38"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.4",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "typescript": "~5.6.2",
+    "vite": "^6.4.3",
+    "vue-tsc": "^2.2.12"
+  },
+  "packageManager": "pnpm@8.15.3+sha256.fc4a49bd609550a41e14d20efbce802a4b892aa4cac877322de2f0924f122991"
+}

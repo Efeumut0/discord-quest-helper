@@ -1,0 +1,37 @@
+name: Windows portable build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-win
+            src-tauri
+      - name: Enable package manager
+        run: corepack enable
+      - name: Test and build portable EXE
+        shell: pwsh
+        run: ./scripts/build.ps1 -OutputDirectory "$env:RUNNER_TEMP/DiscordQuestHelper-release"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DiscordQuestHelper-windows-x64
+          path: ${{ runner.temp }}/DiscordQuestHelper-release/*
+          if-no-files-found: error
