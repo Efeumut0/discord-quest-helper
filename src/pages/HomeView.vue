@@ -13,7 +13,7 @@ import { UseFuseOptions } from '@vueuse/integrations';
 import Fuse from 'fuse.js';
 import { useGlobalState } from '@/composables/state';
 import TimedNotification from '@/components/TimedNotification.vue';
-import { LoaderCircle, Play, Square } from '@lucide/vue';
+import { LoaderCircle, Minus, Play, Plus, Square, Target } from '@lucide/vue';
 import { getExecutableLaunchPayload, getProcessCandidateExecutables, getExecutablePath, getExecutableFilename } from '@/utils/game-executables';
 import { useSearchPriority } from '@/composables/search-priority';
 import { friendlyError } from '@/composables/friendly-errors';
@@ -719,6 +719,20 @@ async function stopPlaying({game, executable}: {game: Game, executable: GameExec
     }
 }
 
+const isChangingGameWindows = ref(false);
+
+async function changeGameWindows(hide: boolean) {
+    if (isChangingGameWindows.value) return;
+    isChangingGameWindows.value = true;
+    try {
+        await invoke('set_generated_game_windows_hidden', { hide });
+    } catch (error) {
+        addLog('error', errorMessage(error));
+    } finally {
+        isChangingGameWindows.value = false;
+    }
+}
+
 async function startAllGames() {
     if (isStartingAllGames.value || isStoppingAllGames.value) return;
     isStartingAllGames.value = true;
@@ -974,7 +988,7 @@ watch(() => gameDB.value.length, (gameCount) => {
             enter-from-class="opacity-0 translate-y-2 ease-in-out"
             enter-to-class="opacity-100 translate-y-0 ease-in-out"
         >
-            <div class="pointer-events-none absolute top-20 left-4 z-20" v-if="shouldShowNotificationContainer && !allFetchDone">
+            <div class="pointer-events-none mb-3 space-y-0.5" v-if="shouldShowNotificationContainer && !allFetchDone">
 
                 <Transition
                     enter-active-class="transition-opacity duration-300 delay-100 ease-in-out"
@@ -1076,8 +1090,9 @@ watch(() => gameDB.value.length, (gameCount) => {
                                         {{ game.item.name }}
                                     </div>
                                     <div v-if="game.item.active_quest_names?.length" class="flex flex-wrap gap-1 mt-1">
-                                        <span v-for="qName in game.item.active_quest_names" :key="qName" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                                            🎯 {{ qName }}
+                                        <span v-for="qName in game.item.active_quest_names" :key="qName" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md quest-label border">
+                                            <Target class="size-3 shrink-0" aria-hidden="true" />
+                                            {{ qName }}
                                         </span>
                                     </div>
                                     <div class="text-sm text-gray-500 dark:text-gray-400">ID: {{ game.item.id }}</div>
@@ -1116,10 +1131,30 @@ watch(() => gameDB.value.length, (gameCount) => {
                 <div class="sticky top-0 z-10 mb-4 flex flex-wrap items-center justify-between gap-2 bg-white py-2 dark:bg-gray-800">
                     <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ t('home.games') }}</h2>
                     <div v-if="gameList.length > 0" class="flex flex-wrap items-center gap-2">
-                        <button type="button" class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50" :disabled="!hasStartableGames || isStartingAllGames || isStoppingAllGames" @click.stop="startAllGames">
+                        <button type="button" class="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50" :disabled="!hasStartableGames || isStartingAllGames || isStoppingAllGames" @click.stop="startAllGames">
                             <LoaderCircle v-if="isStartingAllGames" class="h-3.5 w-3.5 animate-spin" />
                             <Play v-else class="h-3.5 w-3.5" />
                             {{ isStartingAllGames ? t('home.startingAll') : t('home.startAll') }}
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-md border border-gray-300 p-1.5 text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                            :title="t('home.minimizeWindows')"
+                            :aria-label="t('home.minimizeWindows')"
+                            :disabled="isChangingGameWindows || isStartingAllGames || isStoppingAllGames"
+                            @click.stop="changeGameWindows(true)"
+                        >
+                            <Minus class="h-4 w-4" aria-hidden="true" />
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-md border border-gray-300 p-1.5 text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                            :title="t('home.restoreWindows')"
+                            :aria-label="t('home.restoreWindows')"
+                            :disabled="isChangingGameWindows || isStartingAllGames || isStoppingAllGames"
+                            @click.stop="changeGameWindows(false)"
+                        >
+                            <Plus class="h-4 w-4" aria-hidden="true" />
                         </button>
                         <button type="button" class="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50" :disabled="!hasRunningGames || isStoppingAllGames || isStartingAllGames" @click.stop="stopAllGames">
                             <LoaderCircle v-if="isStoppingAllGames" class="h-3.5 w-3.5 animate-spin" />
@@ -1148,7 +1183,7 @@ watch(() => gameDB.value.length, (gameCount) => {
                         duration-200 ease-in-out"
                         :class="[
                             {
-                                'ring-1 ring-violet-500/40 shadow-[0px_0px_8px_2px_#8e51ff50] bg-gray-100 dark:bg-gray-700/40': selectedGame?.uid === game.uid,
+                                'game-selection': selectedGame?.uid === game.uid,
                             }
                         ]" @click="selectGame(game)"
                     >
@@ -1165,7 +1200,7 @@ watch(() => gameDB.value.length, (gameCount) => {
                                     </div>
                                 </div>
                             </div>
-                            <button @click.stop="removeGameFromList(game)" class="text-red-300 hover:text-red-400"
+                            <button @click.stop="removeGameFromList(game)" class="game-remove text-sm"
                                 v-if="!game.is_running">
                                 {{ t('home.remove') }}
                             </button>
@@ -1174,10 +1209,10 @@ watch(() => gameDB.value.length, (gameCount) => {
                             <span
                                 v-for="(questName, qIdx) in game.active_quest_names"
                                 :key="questName"
-                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-sm"
+                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md quest-label border"
                                 :title="game.active_quest_ids?.[qIdx] ? `Quest ID: ${game.active_quest_ids[qIdx]}` : undefined"
                             >
-                                <span>🎯</span>
+                                <Target class="size-3 shrink-0" aria-hidden="true" />
                                 <span class="truncate max-w-[200px]">{{ questName }}</span>
                             </span>
                         </div>
@@ -1185,9 +1220,9 @@ watch(() => gameDB.value.length, (gameCount) => {
                             <span
                                 v-for="questId in game.active_quest_ids"
                                 :key="questId"
-                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-sm"
+                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md quest-label border"
                             >
-                                <span>🎯</span>
+                                <Target class="size-3 shrink-0" aria-hidden="true" />
                                 <span class="font-mono text-[11px]">{{ questId }}</span>
                             </span>
                         </div>

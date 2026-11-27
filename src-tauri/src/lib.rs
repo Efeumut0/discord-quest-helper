@@ -36,10 +36,10 @@ const QUEST_MAX_EXPIRY_SECONDS: u64 = 180 * 24 * 60 * 60;
 
 #[cfg(target_os = "windows")]
 mod process_control {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::{Path, PathBuf};
-    use windows::core::PWSTR;
-    use windows::Win32::Foundation::CloseHandle;
+    use windows::core::{BOOL, PWSTR};
+    use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM};
     use windows::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
         TH32CS_SNAPPROCESS,
@@ -48,6 +48,78 @@ mod process_control {
         OpenProcess, QueryFullProcessImageNameW, TerminateProcess, PROCESS_NAME_WIN32,
         PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE,
     };
+
+    use windows::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetClassNameW, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
+        ShowWindowAsync, SW_HIDE, SW_RESTORE, SW_SHOWNOACTIVATE,
+    };
+
+    struct WindowAction {
+        process_ids: HashSet<u32>,
+        hide: bool,
+        failed: bool,
+    }
+
+    unsafe extern "system" fn update_game_window(hwnd: HWND, param: LPARAM) -> BOOL {
+        // EnumWindows calls this synchronously while WindowAction is alive.
+        let action = unsafe { &mut *(param.0 as *mut WindowAction) };
+        let mut process_id = 0;
+        unsafe {
+            GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+            if !action.process_ids.contains(&process_id) {
+                return true.into();
+            }
+            let mut class_name = [0u16; 64];
+            let length = GetClassNameW(hwnd, &mut class_name) as usize;
+            if !class_name[..length]
+                .iter()
+                .copied()
+                .eq("DiscordQuestRunner".encode_utf16())
+            {
+                return true.into();
+            }
+
+            let visible = IsWindowVisible(hwnd).as_bool();
+            let command = match (action.hide, visible, IsIconic(hwnd).as_bool()) {
+                (true, true, _) => SW_HIDE,
+                (false, _, true) => SW_RESTORE,
+                (false, false, false) => SW_SHOWNOACTIVATE,
+                _ => return true.into(),
+            };
+            if !ShowWindowAsync(hwnd, command).as_bool() {
+                action.failed = true;
+            }
+        }
+        true.into()
+    }
+
+    pub fn set_game_windows_hidden(root: &Path, hide: bool) -> Result<(), String> {
+        let process_ids = running_process_paths_under_dir(root)?
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect::<HashSet<_>>();
+        if process_ids.is_empty() {
+            return Ok(());
+        }
+
+        let mut action = WindowAction {
+            process_ids,
+            hide,
+            failed: false,
+        };
+        unsafe {
+            EnumWindows(
+                Some(update_game_window),
+                LPARAM(&mut action as *mut WindowAction as isize),
+            )
+        }
+        .map_err(|error| format!("Could not list game windows: {error}"))?;
+
+        if action.failed {
+            return Err("Some game windows could not be updated.".into());
+        }
+        Ok(())
+    }
 
     fn normalize_path_text(path: &str) -> String {
         path.trim_start_matches(r"\\?\")
@@ -3067,6 +3139,24 @@ fn get_running_generated_game_processes() -> Result<Vec<RunningGeneratedGameProc
     Ok(by_path.into_values().collect())
 }
 
+#[tauri::command]
+async fn set_generated_game_windows_hidden(hide: bool) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let games_dir = get_app_dir()?.join("games");
+        tauri::async_runtime::spawn_blocking(move || {
+            process_control::set_game_windows_hidden(&games_dir, hide)
+        })
+        .await
+        .map_err(|error| error.to_string())?
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = hide;
+        Err("Game window controls require Windows.".into())
+    }
+}
+
 #[tauri::command(rename_all = "snake_case")]
 async fn run_background_process(
     name: &str,
@@ -3439,6 +3529,9 @@ async fn connect_to_discord_rpc_3(
     activity_json: String,
     action: String,
 ) -> Result<(), String> {
+    // Pause and clear promotional presence before publishing another activity.
+    let _transition = promo_presence::ACTIVITY_TRANSITION.lock().await;
+    let _promo_session = promo_presence::PROMO_SESSION.lock().await;
     let event_connecting = "client_connecting";
     let event_connected = "client_connected";
 
@@ -3618,6 +3711,7 @@ pub fn run() {
             list_active_quests,
             get_game_process_statuses,
             get_running_generated_game_processes,
+            set_generated_game_windows_hidden,
             stop_process,
             clear_icon_cache,
             clear_generated_games,

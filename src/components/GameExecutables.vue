@@ -34,10 +34,9 @@ const source2Executables = computed(() => getSourceExecutables(props.game, 2));
 const currentExecutables = computed<SourcedExecutable[]>(() => {
     if (selectedSource.value === '1') return source1Executables.value;
     if (selectedSource.value === '2') return source2Executables.value;
-    if (source1Executables.value.some(isExecutableActiveRunning)) return source1Executables.value;
-    if (source2Executables.value.some(isExecutableActiveRunning)) return source2Executables.value;
     return source1Executables.value.length ? source1Executables.value : source2Executables.value;
 });
+const hasNoDiscordRecords = computed(() => source1Executables.value.length === 0);
 const shouldShowGeneratedWarning = computed(() => currentExecutables.value.some(e => e.sourceNumber === 2));
 
 function isExecutableActiveRunning(executable: GameExecutable): boolean {
@@ -65,18 +64,11 @@ function isExecutableActiveInstalled(executable: GameExecutable): boolean {
 }
 
 function getSourceBadgeText(executable: SourcedExecutable): string {
-    if (executable.sourceNumber === 2) {
-        return t('sources.source2');
-    }
-    return `${executable.sourceNumber}. Kaynak`;
+    return t(executable.sourceNumber === 1 ? 'sources.badge1' : 'sources.badge2');
 }
 
 function getSourceTooltip(executable: SourcedExecutable): string {
-    if (executable.sourceNumber === 2) {
-        return 'Discord RPC ile profil görünümü; oyun algılaması veya görev ilerlemesi değildir.';
-    }
-    if (executable.sourceNumber === 1) return t('sources.source1');
-    return `${executable.sourceNumber}. Kaynak`;
+    return t(executable.sourceNumber === 1 ? 'sources.description1' : 'sources.description2');
 }
 
 function getButtonText(executable: GameExecutable) {
@@ -132,6 +124,12 @@ function handleLaunch(executable: GameExecutable) {
                     <option value="2">{{ t('sources.source2') }}</option>
                 </select>
             </div>
+            <p v-if="hasNoDiscordRecords" class="mt-2 text-xs text-amber-800 dark:text-amber-200" role="status">
+                {{ t('sources.noDiscordRecords') }}
+            </p>
+            <p v-else-if="!shouldShowGeneratedWarning" class="mt-2 text-xs">
+                {{ t('sources.description1') }}
+            </p>
         </div>
 
         <div v-if="currentExecutables.length === 0" class="space-y-3 my-3">
@@ -179,8 +177,7 @@ function handleLaunch(executable: GameExecutable) {
         </div>
 
         <div v-if="shouldShowGeneratedWarning" class="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
-            Bu dosya adları oyun adından tahmin edilir. Bu kaynak Discord RPC ile profil görünümü gönderir. Discord’un gerçek oyun algılaması
-            veya görev ilerlemesi anlamına gelmez. Bağlantı durumu açılan oyun penceresinde gösterilir.
+            {{ t('sources.description2') }}
         </div>
     </div>
 </template>

@@ -27,6 +27,9 @@ const POLL_INTERVAL: Duration = Duration::from_secs(5);
 /// process is still shutting down.
 const IDLE_POLLS_BEFORE_RESUME: u32 = 2;
 
+pub(crate) static ACTIVITY_TRANSITION: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+pub(crate) static PROMO_SESSION: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 static ENABLED: AtomicBool = AtomicBool::new(false);
 static LANGUAGE: Mutex<String> = Mutex::new(String::new());
 
@@ -141,6 +144,14 @@ fn current_activity() -> PromoActivity {
     promo_activity(&current_language(), start)
 }
 
+fn activity_takes_priority() -> bool {
+    ACTIVITY_TRANSITION.try_lock().is_err()
+        || crate::get_discord_client()
+            .lock()
+            .is_ok_and(|client| client.is_some())
+        || generated_game_running()
+}
+
 fn generated_game_running() -> bool {
     crate::get_running_generated_game_processes()
         .map(|processes| !processes.is_empty())
@@ -181,10 +192,14 @@ pub fn get_promo_presence_status(state: tauri::State<'_, State>) -> Result<Promo
 /// Holds one Discord connection open and keeps the card fresh. Returns once the
 /// setting is turned off or a game takes over, and errors when Discord drops.
 async fn session(app: &AppHandle) -> Result<(), String> {
+    let _session = PROMO_SESSION.lock().await;
+    if activity_takes_priority() {
+        return Ok(());
+    }
     let client = rpc::make_client(PROMO_APP_ID, rpc::ds::Subscriptions::ACTIVITY).await?;
     let mut last_sent: Option<Instant> = None;
     loop {
-        if !ENABLED.load(Ordering::Relaxed) || generated_game_running() {
+        if !ENABLED.load(Ordering::Relaxed) || activity_takes_priority() {
             let _ =
                 tokio::time::timeout(Duration::from_secs(5), client.discord.clear_activity()).await;
             return Ok(());
@@ -217,7 +232,7 @@ async fn run_loop(app: AppHandle) {
             tokio::time::sleep(POLL_INTERVAL).await;
             continue;
         }
-        if generated_game_running() {
+        if activity_takes_priority() {
             quiet_polls = 0;
             report(&app, "suspended", None);
             tokio::time::sleep(POLL_INTERVAL).await;

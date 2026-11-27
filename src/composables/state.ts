@@ -28,6 +28,9 @@ export const Pages = {
 } as const
 export type Pages = typeof Pages[keyof typeof Pages]
 
+export const CLOSE_GAME_BEHAVIORS = ['leave', 'ask', 'stop'] as const
+export type CloseGameBehavior = typeof CLOSE_GAME_BEHAVIORS[number]
+
 export interface AppLogObject {
     type: 'info' | 'error' | 'warning' | 'debug';
     message: string;
@@ -48,8 +51,8 @@ export interface UseGlobalStateReturn {
     setTheme: (newTheme: AppTheme) => void,
     searchPriorityTargetCount: ShallowRef<number>,
     setSearchPriorityTargetCount: (newCount: number) => void,
-    promoPresence: ShallowRef<boolean>,
-    setPromoPresence: (enabled: boolean) => void,
+    closeGameBehavior: ShallowRef<CloseGameBehavior>,
+    setCloseGameBehavior: (behavior: CloseGameBehavior) => void,
     t: (key: string) => string,
 }
 export const useGlobalState = createGlobalState(
@@ -65,8 +68,15 @@ export const useGlobalState = createGlobalState(
       clampSearchPriorityTargetCount(savedSearchPriorityTargetCount || SEARCH_PRIORITY_TARGET_DEFAULT),
     )
 
-    // Promotional Rich Presence is on unless the user turned it off.
-    const promoPresence = shallowRef<boolean>(localStorage.getItem('promo-presence') !== 'off')
+    const savedCloseBehavior = localStorage.getItem('close-game-behavior')
+    const closeGameBehavior = shallowRef<CloseGameBehavior>(
+      savedCloseBehavior === 'ask' || savedCloseBehavior === 'stop' ? savedCloseBehavior : 'leave',
+    )
+
+    function setCloseGameBehavior(behavior: CloseGameBehavior) {
+      closeGameBehavior.value = behavior
+      localStorage.setItem('close-game-behavior', behavior)
+    }
 
     const logs = shallowRef<AppLogObject[]>([])
 
@@ -89,11 +99,6 @@ export const useGlobalState = createGlobalState(
       const normalizedCount = clampSearchPriorityTargetCount(newCount)
       searchPriorityTargetCount.value = normalizedCount
       localStorage.setItem('search-priority-target-count', String(normalizedCount))
-    }
-
-    function setPromoPresence(enabled: boolean) {
-      promoPresence.value = enabled
-      localStorage.setItem('promo-presence', enabled ? 'on' : 'off')
     }
 
     function t(key: string) {
@@ -125,8 +130,8 @@ export const useGlobalState = createGlobalState(
         setTheme,
         searchPriorityTargetCount,
         setSearchPriorityTargetCount,
-        promoPresence,
-        setPromoPresence,
+        closeGameBehavior,
+        setCloseGameBehavior,
         t
     } as UseGlobalStateReturn
   }

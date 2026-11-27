@@ -1,17 +1,18 @@
 <script setup lang="ts">
+import WallpaperSettings from '@/components/WallpaperSettings.vue';
 import { computed, onMounted, ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import {
     APP_THEME_OPTIONS,
+    CLOSE_GAME_BEHAVIORS,
     SEARCH_PRIORITY_TARGET_MAX,
     SEARCH_PRIORITY_TARGET_MIN,
     useGlobalState,
 } from '@/composables/state';
-import type { AppLanguage, AppTheme } from '@/composables/state';
+import type { AppLanguage, AppTheme, CloseGameBehavior } from '@/composables/state';
 import { useSearchPriority } from '@/composables/search-priority';
 import { useNewGames } from '@/composables/new-games';
-import { promoStatusKey, usePromoPresence } from '@/composables/promo-presence';
 
 interface CleanupResult {
     deleted_files: number;
@@ -24,13 +25,12 @@ const {
     setLanguage,
     theme,
     setTheme,
+    closeGameBehavior,
+    setCloseGameBehavior,
     searchPriorityTargetCount,
     setSearchPriorityTargetCount,
-    promoPresence,
-    setPromoPresence,
     t,
 } = useGlobalState();
-const { phase: promoPhase } = usePromoPresence();
 const {
     priorityData,
     refreshSearchPriority,
@@ -56,12 +56,10 @@ const selectedLanguage = computed({
     set: (value: AppLanguage) => setLanguage(value),
 });
 
-const promoEnabled = computed({
-    get: () => promoPresence.value,
-    set: (value: boolean) => setPromoPresence(value),
+const selectedCloseGameBehavior = computed({
+    get: () => closeGameBehavior.value,
+    set: (value: CloseGameBehavior) => setCloseGameBehavior(value),
 });
-
-const promoStatusText = computed(() => t(promoStatusKey(promoPhase.value)));
 
 const selectedTheme = computed({
     get: () => theme.value,
@@ -177,26 +175,23 @@ onMounted(() => {
         <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <div class="space-y-5">
                 <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                        {{ t('settings.promoTitle') }}
-                    </h2>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                        {{ t('settings.promoDescription') }}
-                    </p>
-                    <label class="mt-4 flex items-start gap-3 text-sm text-gray-900 dark:text-white" for="promo-presence-toggle">
-                        <input
-                            id="promo-presence-toggle"
-                            v-model="promoEnabled"
-                            type="checkbox"
-                            class="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600"
-                        >
-                        <span>{{ t('settings.promoLabel') }}</span>
+                    <label for="close-game-behavior" class="block text-lg font-semibold text-gray-900 dark:text-white">
+                        {{ t('settings.closeGameBehavior') }}
                     </label>
-                    <div class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                        {{ promoStatusText }}
-                    </div>
+                    <p id="close-game-description" class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        {{ t('settings.closeGameDescription') }}
+                    </p>
+                    <select
+                        id="close-game-behavior"
+                        v-model="selectedCloseGameBehavior"
+                        aria-describedby="close-game-description"
+                        class="mt-3 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    >
+                        <option v-for="behavior in CLOSE_GAME_BEHAVIORS" :key="behavior" :value="behavior">
+                            {{ t('closeGames.' + behavior) }}
+                        </option>
+                    </select>
                 </section>
-
                 <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
                     <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                         {{ t('settings.language') }}
@@ -252,6 +247,35 @@ onMounted(() => {
                     </div>
                 </section>
 
+                <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        {{ t('settings.themeTitle') }}
+                    </h2>
+                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                        {{ t('settings.themeLabel') }}
+                    </p>
+
+                    <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                        <button
+                            v-for="themeOption in APP_THEME_OPTIONS"
+                            :key="themeOption"
+                            type="button"
+                            class="group rounded-md border p-2 text-left transition-colors"
+                            :class="selectedTheme === themeOption
+                                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10'
+                                : 'border-gray-200 bg-gray-50 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700'"
+                            @click="selectedTheme = themeOption"
+                        >
+                            <span
+                                class="block h-10 rounded-md border border-black/10"
+                                :style="{ background: themeSwatches[themeOption] }"
+                            ></span>
+                            <span class="mt-2 block text-sm font-medium text-gray-800 dark:text-white">
+                                {{ getThemeLabel(themeOption) }}
+                            </span>
+                        </button>
+                    </div>
+                </section>
             </div>
 
             <div class="space-y-5">
@@ -369,40 +393,7 @@ onMounted(() => {
                         {{ t('settings.newGamesClear') }}
                     </button>
                 </section>
-
-                <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
-            <div>
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                        {{ t('settings.themeTitle') }}
-                    </h2>
-                    <div class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                        {{ t('settings.themeLabel') }}
-                    </div>
-                </div>
-            </div>
-
-            <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-                <button
-                    v-for="themeOption in APP_THEME_OPTIONS"
-                    :key="themeOption"
-                    type="button"
-                    class="group rounded-md border p-2 text-left transition-colors"
-                    :class="selectedTheme === themeOption
-                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10'
-                        : 'border-gray-200 bg-gray-50 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700'"
-                    @click="selectedTheme = themeOption"
-                >
-                    <span
-                        class="block h-10 rounded-md border border-black/10"
-                        :style="{ background: themeSwatches[themeOption] }"
-                    ></span>
-                    <span class="mt-2 block text-sm font-medium text-gray-800 dark:text-white">
-                        {{ getThemeLabel(themeOption) }}
-                    </span>
-                </button>
-            </div>
-                </section>
+                <WallpaperSettings />
             </div>
         </div>
     </div>

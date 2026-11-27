@@ -61,7 +61,8 @@ html.theme-dark {
     --app-muted: #cbd5e1;
     --app-soft: #94a3b8;
     --app-accent: #7c3aed;
-    --app-accent-hover: #8b5cf6;
+    --app-accent-text: #ffffff;
+    --app-accent-hover: #6d28d9;
     --app-accent-soft: rgba(124, 58, 237, 0.18);
 }
 
@@ -76,6 +77,7 @@ html.theme-light {
     --app-muted: #4b5563;
     --app-soft: #6b7280;
     --app-accent: #4f46e5;
+    --app-accent-text: #ffffff;
     --app-accent-hover: #4338ca;
     --app-accent-soft: rgba(79, 70, 229, 0.12);
 }
@@ -91,6 +93,7 @@ html.theme-purple {
     --app-muted: #d6c9f0;
     --app-soft: #b9a7dd;
     --app-accent: #a78bfa;
+    --app-accent-text: #160f27;
     --app-accent-hover: #c4b5fd;
     --app-accent-soft: rgba(167, 139, 250, 0.18);
 }
@@ -106,6 +109,7 @@ html.theme-blue {
     --app-muted: #c1d8ef;
     --app-soft: #90b7d8;
     --app-accent: #38bdf8;
+    --app-accent-text: #071525;
     --app-accent-hover: #7dd3fc;
     --app-accent-soft: rgba(56, 189, 248, 0.16);
 }
@@ -121,6 +125,7 @@ html.theme-green {
     --app-muted: #c1eadc;
     --app-soft: #8fd0bb;
     --app-accent: #34d399;
+    --app-accent-text: #061b15;
     --app-accent-hover: #6ee7b7;
     --app-accent-soft: rgba(52, 211, 153, 0.16);
 }
@@ -136,6 +141,7 @@ html.theme-red {
     --app-muted: #f3c2cf;
     --app-soft: #dfa0b2;
     --app-accent: #fb7185;
+    --app-accent-text: #230d13;
     --app-accent-hover: #fda4af;
     --app-accent-soft: rgba(251, 113, 133, 0.16);
 }
@@ -244,4 +250,84 @@ html.theme-custom .focus\:ring-indigo-500:focus {
 html.theme-custom .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
 html.theme-custom .dark\:divide-gray-700 > :not([hidden]) ~ :not([hidden]) {
     border-color: var(--app-border) !important;
+}
+
+/* Keep action labels legible on each theme's accent color. */
+html.theme-custom button.bg-indigo-600:not(:disabled) {
+    color: var(--app-accent-text) !important;
+}
+
+/* Disabled actions must not inherit the active accent or hover colors. */
+html.theme-custom button:disabled {
+    background-color: var(--app-elevated) !important;
+    color: var(--app-muted) !important;
+    opacity: 1;
+    cursor: not-allowed;
+}
+
+.quest-label {
+    background-color: var(--app-control, #eef2ff);
+    border-color: var(--app-border, #c7d2fe);
+    color: var(--app-text, #3730a3);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not(.theme-custom) .quest-label {
+        background-color: #25334a;
+        border-color: #405273;
+        color: #dbeafe;
+    }
+}
+
+.game-selection {
+    outline: 2px solid var(--app-accent, #7c3aed);
+    outline-offset: -1px;
+    background-color: var(--app-control, #f3f4f6) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not(.theme-custom) .game-selection {
+        background-color: #263244 !important;
+    }
+}
+
+.game-remove {
+    color: var(--app-muted, #64748b);
+}
+
+.game-remove:hover {
+    color: var(--app-text, #111827);
+    text-decoration: underline;
+}
+
+.dark .game-remove {
+    color: var(--app-muted, #cbd5e1);
+}
+
+.dark .game-remove:hover {
+    color: var(--app-text, #f8fafc);
+}
+
+.wallpaper-content {
+    --wallpaper-panel: var(--app-surface, #ffffff);
+}
+
+@media (prefers-color-scheme: dark) {
+    .wallpaper-content {
+        --wallpaper-panel: var(--app-surface, #1e293b);
+    }
+}
+
+/* Keep the single wallpaper visible through the panels and their nested cards. */
+.wallpaper-content :is(section, article, div, aside):is(.bg-white, .dark\:bg-gray-800) {
+    background-color: color-mix(in srgb, var(--wallpaper-panel) 22%, transparent) !important;
+}
+
+.wallpaper-content :is(section, article, div, aside):is(.bg-white, .dark\:bg-gray-800)
+    :is(article, div, li):is(.bg-gray-50, .dark\:bg-gray-900) {
+    background-color: color-mix(in srgb, var(--wallpaper-panel) 16%, transparent) !important;
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useWallpaper } from '@/composables/wallpaper';
 import { Pages, useGlobalState } from '@/composables/state';
 import IconRustLang from './IconRustLang.vue';
 import IconVueJs from './IconVueJs.vue';
@@ -8,6 +9,7 @@ import { onMounted, shallowRef } from 'vue';
 
 const appState = useGlobalState();
 const { page, setPage, t } = appState;
+const { image: wallpaper, style: wallpaperStyle } = useWallpaper();
 const version = shallowRef('');
 const releaseDate = shallowRef('');
 onMounted(async () => {
@@ -98,9 +100,14 @@ onMounted(async () => {
     </header>
 
     <UpdateNotice />
-    <main class="min-h-0 flex-grow overflow-y-auto">
-      <slot></slot>
-    </main>
+    <div class="relative flex min-h-0 flex-1 flex-col">
+      <div v-if="wallpaper" aria-hidden="true" class="pointer-events-none absolute inset-0 overflow-hidden">
+        <img :src="wallpaper" :style="wallpaperStyle" alt="" class="absolute h-auto max-w-none" />
+      </div>
+      <main class="relative min-h-0 flex-1 overflow-y-auto" :class="{ 'wallpaper-content': wallpaper }">
+        <slot></slot>
+      </main>
+    </div>
 
     <footer class="shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto">
       <div class="app-frame py-4 text-center text-sm text-gray-600 dark:text-gray-400">

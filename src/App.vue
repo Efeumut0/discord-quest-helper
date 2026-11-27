@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, type Component } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, type Component } from 'vue';
+import { useCloseGames } from './composables/close-games';
 import MainLayout from './components/MainLayout.vue';
 import { Pages, useGlobalState } from './composables/state';
 import BulkCreateView from './pages/BulkCreateView.vue';
@@ -33,9 +34,12 @@ const pageComponents: Record<Pages, Component> = {
 
 const currentPageComponent = computed(() => pageComponents[page.value]);
 
+const closeGames = useCloseGames();
 onMounted(() => {
   void startPromoPresence();
+  void closeGames.start();
 });
+onUnmounted(closeGames.dispose);
 
 async function openNewGamesInSettings() {
   closeNewGamesModal();

@@ -22,14 +22,14 @@ export function promoStatusKey(phase: string) {
 }
 
 export const usePromoPresence = createGlobalState(() => {
-    const { promoPresence, language } = useGlobalState()
+    const { language } = useGlobalState()
     const phase = shallowRef<string>('disabled')
     let started = false
 
     async function sync() {
         try {
             await invoke('set_promo_presence', {
-                enabled: promoPresence.value,
+                enabled: true,
                 language: language.value,
             })
         } catch (error) {
@@ -40,7 +40,7 @@ export const usePromoPresence = createGlobalState(() => {
     async function start() {
         if (started) return
         started = true
-        watch([promoPresence, language], () => {
+        watch(language, () => {
             void sync()
         })
         await sync()

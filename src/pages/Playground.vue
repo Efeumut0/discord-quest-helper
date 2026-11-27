@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onDeactivated, onMounted, ref } from 'vue';
+import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { useGlobalState } from '@/composables/state';
 
@@ -9,6 +10,15 @@ const ActivityKind = {
     Watching: 3,
     Competing: 5
 } as const;
+
+const version = ref('');
+onMounted(async () => {
+    try {
+        version.value = await getVersion();
+    } catch (error) {
+        addLog('error', errorMessage(error));
+    }
+});
 
 const isConnected = ref(false);
 const isTesting = ref(false);
@@ -20,39 +30,57 @@ function errorMessage(error: unknown) {
     return error instanceof Error ? error.message : String(error);
 }
 
+let stopRequested = false;
+
+async function disconnectTest() {
+    await invoke('connect_to_discord_rpc_3', {
+        activity_json: '{}',
+        action: 'disconnect',
+    });
+    isConnected.value = false;
+}
+
+async function stopTest() {
+    stopRequested = true;
+    if (isTesting.value || !isConnected.value) return;
+
+    isTesting.value = true;
+    try {
+        await disconnectTest();
+    } catch (error) {
+        addLog('error', `${t('playground.connectionFailed')} ${errorMessage(error)}`);
+    } finally {
+        isTesting.value = false;
+    }
+}
+
+onDeactivated(() => { void stopTest(); });
+
 async function discordTest() {
     if (isTesting.value) return;
-    isTesting.value = true;
     if (isConnected.value) {
-        try {
-            await invoke('connect_to_discord_rpc_3', {
-                activity_json: '{}',
-                action: 'disconnect',
-            });
-            isConnected.value = false;
-        } catch (error) {
-            addLog('error', `${t('playground.connectionFailed')} ${errorMessage(error)}`);
-        } finally {
-            isTesting.value = false;
-        }
+        await stopTest();
         return;
     }
 
+    stopRequested = false;
+    isTesting.value = true;
     try {
         await invoke('connect_to_discord_rpc_3', {
             activity_json: JSON.stringify({
                 app_id: appIdCode,
                 details: t('playground.testDetails'),
-                state: t('playground.testState'),
+                state: version.value ? `Quest Helper v${version.value}` : 'Quest Helper',
                 activity_kind: ActivityKind.Playing,
                 timestamp: Math.floor(Date.now() / 1000)
             }),
             action: 'connect',
         });
         isConnected.value = true;
+        if (stopRequested) await disconnectTest();
+        else addLog('info', t('playground.testSent'));
     } catch (error) {
         addLog('error', `${t('playground.connectionFailed')} ${errorMessage(error)}`);
-        isConnected.value = false;
     } finally {
         isTesting.value = false;
     }
@@ -79,6 +107,7 @@ async function discordTest() {
                         <h1 class="text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
                             Discord Quest Helper
                         </h1>
+                        <p v-if="version" class="mt-1 text-sm text-gray-500 dark:text-gray-400">v{{ version }}</p>
                         <div class="mt-4 flex flex-wrap gap-2 text-xs">
                             <span
                                 class="rounded-md border px-2.5 py-1 font-medium"

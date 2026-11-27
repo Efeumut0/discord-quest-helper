@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, ref, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useFetchGameList } from '@/composables/fetch-gamelist';
 import { useGlobalState } from '@/composables/state';
@@ -29,6 +29,21 @@ const searchQuery = ref('');
 const sortMode = ref<GameSortMode>('az');
 const creatingGameId = ref<string | null>(null);
 const statusMessage = ref('');
+const generatedGameIds = ref(new Set<string>());
+
+async function refreshGeneratedGames() {
+    try {
+        const games = await invoke<{ app_id: string; exe_count: number }[]>('list_generated_games');
+        generatedGameIds.value = new Set(games.filter(game => game.exe_count > 0).map(game => game.app_id));
+    } catch (error) {
+        addLog('error', String(error));
+    }
+}
+
+onActivated(refreshGeneratedGames);
+watch(creatingGameId, (id, previousId) => {
+    if (id === null && previousId !== null) void refreshGeneratedGames();
+});
 const currentPage = ref(1);
 const activeJumpKey = ref<string | null>(null);
 const jumpPageInput = ref('');
@@ -196,7 +211,7 @@ watch(totalPages, (newTotalPages) => {
                     <div
                         v-for="game in pageGames"
                         :key="game.id"
-                        class="grid grid-cols-1 gap-4 px-5 py-4 lg:grid-cols-[minmax(220px,1.1fr)_minmax(180px,0.8fr)_minmax(260px,1fr)_auto] lg:items-center"
+                        class="grid grid-cols-1 gap-4 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)_minmax(0,1.2fr)_18rem] lg:items-center"
                     >
                         <div class="min-w-0">
                             <div class="truncate text-base font-semibold text-gray-900 dark:text-white">
@@ -235,19 +250,24 @@ watch(totalPages, (newTotalPages) => {
                                     +{{ getSupportedExecutables(game).length - 3 }}
                                 </span>
                             </div>
-                            <div v-else class="text-sm text-gray-500 dark:text-gray-400">
-                                {{ t('games.noWindows') }} 2. Kaynak, tahmini dosya adlarıyla RPC profil görünümü gönderir; gerçek oyun algılaması veya görev ilerlemesi değildir.
+                            <div v-else class="text-xs text-gray-500 dark:text-gray-400" :title="t('sources.description2')">
+                                {{ t('games.noWindowsShort') }}
                             </div>
                         </div>
 
-                        <button
-                            type="button"
-                            class="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-400 lg:justify-self-end"
-                            :disabled="creatingGameId !== null || getPlayableExecutables(game).length === 0"
-                            @click="createGameFiles(game)"
-                        >
-                            {{ creatingGameId === game.id ? t('games.creating') : t('games.create') }}
-                        </button>
+                        <div class="flex flex-wrap items-center justify-end gap-2">
+                            <span v-if="generatedGameIds.has(game.id)" class="text-xs font-medium text-gray-700 dark:text-gray-200">
+                                {{ t('games.filesExist') }}
+                            </span>
+                            <button
+                                type="button"
+                                class="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-400 lg:w-48"
+                                :disabled="creatingGameId !== null || getPlayableExecutables(game).length === 0"
+                                @click="createGameFiles(game)"
+                            >
+                                {{ t(creatingGameId === game.id ? 'games.creating' : generatedGameIds.has(game.id) ? 'games.recreate' : 'games.create') }}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
