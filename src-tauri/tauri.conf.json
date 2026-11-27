@@ -27,7 +27,8 @@
       "csp": {
         "default-src": "'self' customprotocol: asset:",
         "connect-src": "ipc: http://ipc.localhost https://cdn.discordapp.com https://discord.com https://api.discordquest.com https://raw.githubusercontent.com",
-        "img-src": "'self' asset: http://asset.localhost blob: data:",
+        "img-src": "'self' asset: http://asset.localhost blob: data: https://cdn.discordapp.com",
+      "media-src": "'self' asset: blob: data: https://cdn.discordapp.com",
         "style-src": "'unsafe-inline' 'self'"
       }
     }

@@ -17,6 +17,7 @@ import { LoaderCircle, Play, Square } from '@lucide/vue';
 import { getExecutableLaunchPayload, getProcessCandidateExecutables, getExecutablePath, getExecutableFilename } from '@/utils/game-executables';
 import { useSearchPriority } from '@/composables/search-priority';
 import { friendlyError } from '@/composables/friendly-errors';
+import { buildActiveQuestCatalog } from '@/utils/active-quest-catalog';
 import { rankGames } from '@/utils/search-ranking';
 
 type DialogKey =
@@ -473,19 +474,6 @@ const canCreateActiveQuestGames = computed(() => {
         && !isCreatingActiveQuestGames.value;
 });
 
-function buildActiveQuestCatalog() {
-    return gameDB.value.map(game => ({
-        id: game.id,
-        name: game.name,
-        icon_hash: game.icon_hash ?? null,
-        aliases: game.aliases ?? [],
-        executables: (game.executables || []).map(executable => ({
-            name: executable.name,
-            os: executable.os,
-        })),
-    }));
-}
-
 async function createActiveQuestGames() {
     if (!canCreateActiveQuestGames.value) {
         return;
@@ -496,7 +484,7 @@ async function createActiveQuestGames() {
 
     try {
         const response = await invoke<ActiveQuestCreateResponse>('create_active_quest_games', {
-            games: buildActiveQuestCatalog(),
+            games: buildActiveQuestCatalog(gameDB.value),
         });
 
         const incomingQuestIds = new Set(response.created_games.flatMap(g => g.quest_ids));

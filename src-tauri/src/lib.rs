@@ -30,7 +30,9 @@ const QUEST_PUBLIC_API_URL: &str = "https://api.discordquest.com/api/quests";
 const QUEST_RAW_GITHUB_URL: &str =
     "https://raw.githubusercontent.com/aamiaa/discord-api-diff/refs/heads/main/quests.json";
 const DISCORD_QUEST_DETAIL_API_BASE: &str = "https://discord.com/api/v10/quests/";
-const QUEST_RAW_MAX_EXPIRY_SECONDS: u64 = 180 * 24 * 60 * 60;
+// Real quests run for weeks. Anything that ends further out than this is one of
+// Discord's permanent internal test entries, so it never reaches the list.
+const QUEST_MAX_EXPIRY_SECONDS: u64 = 180 * 24 * 60 * 60;
 
 #[cfg(target_os = "windows")]
 mod process_control {
@@ -596,6 +598,11 @@ struct ActiveQuestInfo {
     application_ids: Vec<String>,
     game_names: Vec<String>,
     expires_at: u64,
+    starts_at: u64,
+    reward: Option<String>,
+    publisher: Option<String>,
+    hero_image: Option<String>,
+    hero_video: Option<String>,
     play_task: bool,
     stream_task: bool,
 }
@@ -624,6 +631,77 @@ struct ActiveQuestCreateResponse {
     sources: Vec<String>,
     source_errors: Vec<String>,
     creation_errors: Vec<String>,
+}
+
+/// Discord publishes the same quest once per language, each with its own id.
+/// They share the application and the end time, so the panel keeps one of them
+/// and counts the rest. An ASCII name is preferred, since that is the original.
+fn collapse_localised_quests(quests: Vec<ActiveQuestInfo>) -> Vec<(ActiveQuestInfo, usize)> {
+    let mut groups: Vec<(String, Vec<ActiveQuestInfo>)> = Vec::new();
+
+    for quest in quests {
+        let mut app_ids = quest.application_ids.clone();
+        app_ids.sort();
+        let key = format!("{}|{}", app_ids.join(","), quest.expires_at);
+        match groups.iter_mut().find(|(group_key, _)| group_key == &key) {
+            Some((_, items)) => items.push(quest),
+            None => groups.push((key, vec![quest])),
+        }
+    }
+
+    groups
+        .into_iter()
+        .map(|(_, mut items)| {
+            let count = items.len();
+            items.sort_by(|a, b| {
+                let a_ascii = a.name.is_ascii();
+                let b_ascii = b.name.is_ascii();
+                b_ascii.cmp(&a_ascii).then_with(|| a.id.cmp(&b.id))
+            });
+            let mut chosen = items.remove(0);
+            for other in items {
+                if chosen.reward.is_none() {
+                    chosen.reward = other.reward;
+                }
+                if chosen.hero_image.is_none() {
+                    chosen.hero_image = other.hero_image;
+                }
+                if chosen.hero_video.is_none() {
+                    chosen.hero_video = other.hero_video;
+                }
+                if chosen.publisher.is_none() {
+                    chosen.publisher = other.publisher;
+                }
+            }
+            (chosen, count)
+        })
+        .collect()
+}
+
+#[derive(Serialize)]
+struct ActiveQuestListItem {
+    id: String,
+    name: String,
+    game_names: Vec<String>,
+    expires_at: u64,
+    starts_at: u64,
+    reward: Option<String>,
+    publisher: Option<String>,
+    hero_image: Option<String>,
+    hero_video: Option<String>,
+    variant_count: usize,
+    matched_game_id: Option<String>,
+    matched_game_name: Option<String>,
+    matched_game_icon_hash: Option<String>,
+    has_windows_executable: bool,
+}
+
+#[derive(Serialize)]
+struct ActiveQuestListResponse {
+    quests: Vec<ActiveQuestListItem>,
+    stream_only_count: usize,
+    sources: Vec<String>,
+    source_errors: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -1048,6 +1126,70 @@ fn collect_quest_game_names(config: &serde_json::Value) -> Vec<String> {
     names
 }
 
+const DISCORD_CDN_BASE: &str = "https://cdn.discordapp.com/";
+
+/// Quest artwork lives under the Discord CDN with the path the config carries.
+/// Placeholder entries are skipped.
+fn quest_asset_url(config: &serde_json::Value, keys: &[&str]) -> Option<String> {
+    let assets = value_at(config, &["assets"])?;
+    for key in keys {
+        let Some(path) = assets.get(*key).and_then(|value| value.as_str()) else {
+            continue;
+        };
+        let path = path.trim();
+        if path.is_empty() || path.eq_ignore_ascii_case("PLACEHOLDER") {
+            continue;
+        }
+        if path.starts_with("http://") || path.starts_with("https://") {
+            return Some(path.to_string());
+        }
+        // A bare file name ("hero.png") is a leftover from an old quest record and
+        // does not resolve on the CDN; only full "quests/<id>/<file>" paths do.
+        if !path.trim_matches('/').contains('/') {
+            continue;
+        }
+        return Some(format!(
+            "{DISCORD_CDN_BASE}{}",
+            path.trim_start_matches('/')
+        ));
+    }
+    None
+}
+
+fn quest_reward_name(config: &serde_json::Value) -> Option<String> {
+    let roots = [
+        value_at(config, &["rewards_config", "rewards"]),
+        value_at(config, &["rewardsConfig", "rewards"]),
+        value_at(config, &["reward_config", "rewards"]),
+        value_at(config, &["rewards"]),
+    ];
+
+    for root in roots.into_iter().flatten() {
+        let items = match root {
+            serde_json::Value::Array(items) => items.clone(),
+            serde_json::Value::Object(map) => map.values().cloned().collect(),
+            _ => continue,
+        };
+        for item in items {
+            for path in [
+                vec!["messages", "name"],
+                vec!["messages", "name_with_article"],
+                vec!["name"],
+                vec!["sku_id_name"],
+            ] {
+                if let Some(name) = string_at(&item, &path) {
+                    let trimmed = name.trim().to_string();
+                    if !trimmed.is_empty() {
+                        return Some(trimmed);
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
 fn quest_label_text(config: &serde_json::Value) -> String {
     [
         string_at(config, &["messages", "quest_name"]),
@@ -1066,12 +1208,8 @@ fn quest_label_text(config: &serde_json::Value) -> String {
 }
 
 fn is_recent_quest_candidate(source: &str, starts_at: u64, expires_at: u64, now: u64) -> bool {
-    if source == "Raw GitHub Feed" {
-        expires_at <= now.saturating_add(QUEST_RAW_MAX_EXPIRY_SECONDS)
-    } else {
-        let _ = starts_at;
-        true
-    }
+    let _ = (source, starts_at);
+    expires_at <= now.saturating_add(QUEST_MAX_EXPIRY_SECONDS)
 }
 
 fn extract_active_desktop_quest(
@@ -1144,6 +1282,12 @@ fn extract_active_desktop_quest(
         application_ids,
         game_names,
         expires_at,
+        starts_at,
+        reward: quest_reward_name(config),
+        publisher: string_at(config, &["messages", "game_publisher"])
+            .or_else(|| string_at(config, &["messages", "gamePublisher"])),
+        hero_image: quest_asset_url(config, &["hero", "quest_bar_hero", "game_tile_dark"]),
+        hero_video: quest_asset_url(config, &["hero_video", "quest_bar_hero_video"]),
         play_task,
         stream_task,
     })
@@ -1224,6 +1368,21 @@ async fn fetch_active_desktop_quests(
                             }
                             existing.play_task |= quest.play_task;
                             existing.stream_task |= quest.stream_task;
+                            if existing.reward.is_none() {
+                                existing.reward = quest.reward.clone();
+                            }
+                            if existing.starts_at == 0 {
+                                existing.starts_at = quest.starts_at;
+                            }
+                            if existing.publisher.is_none() {
+                                existing.publisher = quest.publisher.clone();
+                            }
+                            if existing.hero_image.is_none() {
+                                existing.hero_image = quest.hero_image.clone();
+                            }
+                            if existing.hero_video.is_none() {
+                                existing.hero_video = quest.hero_video.clone();
+                            }
                         })
                         .or_insert(quest);
                 }
@@ -1271,6 +1430,21 @@ async fn fetch_active_desktop_quests(
                 }
                 existing.play_task |= detail_quest.play_task;
                 existing.stream_task |= detail_quest.stream_task;
+                if existing.reward.is_none() {
+                    existing.reward = detail_quest.reward.clone();
+                }
+                if existing.starts_at == 0 {
+                    existing.starts_at = detail_quest.starts_at;
+                }
+                if existing.publisher.is_none() {
+                    existing.publisher = detail_quest.publisher.clone();
+                }
+                if existing.hero_image.is_none() {
+                    existing.hero_image = detail_quest.hero_image.clone();
+                }
+                if existing.hero_video.is_none() {
+                    existing.hero_video = detail_quest.hero_video.clone();
+                }
             }
         }
     }
@@ -2592,6 +2766,74 @@ async fn create_fake_game(
     Ok(result)
 }
 
+/// Read-only list for the active quest panel. Stream-only quests are counted
+/// but never listed, because this panel is about quests the helper can run.
+#[tauri::command(rename_all = "snake_case")]
+async fn list_active_quests(
+    games: Vec<ActiveQuestGameCatalogItem>,
+) -> Result<ActiveQuestListResponse, String> {
+    if games.is_empty() {
+        return Err("Game list is not ready.".to_string());
+    }
+
+    let (by_id, by_name) = build_active_game_maps(games);
+    let (active_quests, sources, source_errors) = fetch_active_desktop_quests().await?;
+
+    let mut quests = Vec::new();
+    let mut stream_only_count = 0usize;
+    let mut playable = Vec::new();
+
+    for quest in active_quests {
+        if quest.play_task {
+            playable.push(quest);
+        } else {
+            stream_only_count += 1;
+        }
+    }
+
+    for (quest, variant_count) in collapse_localised_quests(playable) {
+        let matched = match_active_quest_game(&quest, &by_id, &by_name);
+        let catalog_game = matched.as_ref().map(|item| item.game.clone()).or_else(|| {
+            quest
+                .application_ids
+                .iter()
+                .find_map(|app_id| by_id.get(app_id).cloned())
+        });
+
+        quests.push(ActiveQuestListItem {
+            id: quest.id,
+            name: quest.name,
+            game_names: quest.game_names,
+            expires_at: quest.expires_at,
+            starts_at: quest.starts_at,
+            reward: quest.reward,
+            publisher: quest.publisher,
+            hero_image: quest.hero_image,
+            hero_video: quest.hero_video,
+            variant_count,
+            matched_game_id: catalog_game.as_ref().map(|game| game.id.clone()),
+            matched_game_name: catalog_game.as_ref().map(|game| game.name.clone()),
+            matched_game_icon_hash: catalog_game
+                .as_ref()
+                .and_then(|game| game.icon_hash.clone()),
+            has_windows_executable: matched.is_some(),
+        });
+    }
+
+    quests.sort_by(|a, b| {
+        a.expires_at
+            .cmp(&b.expires_at)
+            .then_with(|| a.name.cmp(&b.name))
+    });
+
+    Ok(ActiveQuestListResponse {
+        quests,
+        stream_only_count,
+        sources,
+        source_errors,
+    })
+}
+
 #[tauri::command(rename_all = "snake_case")]
 async fn create_active_quest_games(
     games: Vec<ActiveQuestGameCatalogItem>,
@@ -3373,6 +3615,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             create_fake_game,
             create_active_quest_games,
+            list_active_quests,
             get_game_process_statuses,
             get_running_generated_game_processes,
             stop_process,
@@ -3407,6 +3650,130 @@ pub fn run() {
 mod tests {
     use super::*;
 
+    fn quest_fixture(id: &str, name: &str, app_id: &str, expires_at: u64) -> ActiveQuestInfo {
+        ActiveQuestInfo {
+            id: id.to_string(),
+            name: name.to_string(),
+            application_ids: vec![app_id.to_string()],
+            game_names: vec!["Roblox".to_string()],
+            expires_at,
+            starts_at: 0,
+            reward: None,
+            publisher: None,
+            hero_image: None,
+            hero_video: None,
+            play_task: true,
+            stream_task: false,
+        }
+    }
+
+    #[test]
+    fn one_quest_published_in_many_languages_is_listed_once() {
+        // Discord ships the same Roblox quest per locale, each with its own id.
+        let quests = vec![
+            quest_fixture("3", "เกมมวยที่ไม่มีชื่อ", "363445589247131668", 1800000000),
+            quest_fixture(
+                "2",
+                "Untitled Boxing Game",
+                "363445589247131668",
+                1800000000,
+            ),
+            quest_fixture(
+                "4",
+                "unbetiteltes Boxspiel",
+                "363445589247131668",
+                1800000000,
+            ),
+            quest_fixture("9", "Firefox Browser", "1491208267928703226", 1800000000),
+        ];
+
+        let collapsed = collapse_localised_quests(quests);
+        assert_eq!(collapsed.len(), 2);
+
+        let roblox = collapsed
+            .iter()
+            .find(|(quest, _)| quest.application_ids[0] == "363445589247131668")
+            .expect("roblox group");
+        assert_eq!(roblox.1, 3, "every language variant is counted");
+        assert_eq!(
+            roblox.0.name, "Untitled Boxing Game",
+            "the original name wins over a translation"
+        );
+    }
+
+    #[test]
+    fn quests_that_end_at_different_times_stay_separate() {
+        let quests = vec![
+            quest_fixture("1", "First", "363445589247131668", 1800000000),
+            quest_fixture("2", "Second", "363445589247131668", 1900000000),
+        ];
+        assert_eq!(collapse_localised_quests(quests).len(), 2);
+    }
+
+    #[test]
+    fn quest_artwork_skips_placeholders_and_builds_cdn_links() {
+        let config = serde_json::json!({
+            "assets": {
+                "hero": "quests/123/456.jpg",
+                "hero_video": "quests/123/789_720.mp4",
+                "game_tile": "PLACEHOLDER"
+            }
+        });
+        assert_eq!(
+            quest_asset_url(&config, &["hero"]),
+            Some("https://cdn.discordapp.com/quests/123/456.jpg".to_string())
+        );
+        assert_eq!(
+            quest_asset_url(&config, &["hero_video"]),
+            Some("https://cdn.discordapp.com/quests/123/789_720.mp4".to_string())
+        );
+        assert_eq!(quest_asset_url(&config, &["game_tile"]), None);
+        assert_eq!(quest_asset_url(&serde_json::json!({}), &["hero"]), None);
+
+        let legacy = serde_json::json!({"assets": {"hero": "hero.png"}});
+        assert_eq!(quest_asset_url(&legacy, &["hero"]), None);
+    }
+
+    #[test]
+    fn quests_that_never_expire_are_left_out() {
+        let now = 1_700_000_000u64;
+        let week = 7 * 24 * 3600;
+        assert!(is_recent_quest_candidate(
+            "Public API",
+            now,
+            now + week,
+            now
+        ));
+        assert!(!is_recent_quest_candidate(
+            "Public API",
+            now,
+            now + 400 * 24 * 3600,
+            now
+        ));
+    }
+
+    #[test]
+    fn quest_reward_name_is_read_from_the_usual_places() {
+        let shaped = serde_json::json!({
+            "rewards_config": {"rewards": [{"messages": {"name": "Avatar decoration"}}]}
+        });
+        assert_eq!(
+            quest_reward_name(&shaped),
+            Some("Avatar decoration".to_string())
+        );
+
+        let camel = serde_json::json!({"rewardsConfig": {"rewards": [{"name": "Profile effect"}]}});
+        assert_eq!(
+            quest_reward_name(&camel),
+            Some("Profile effect".to_string())
+        );
+
+        let blank = serde_json::json!({"rewards_config": {"rewards": [{"name": "   "}]}});
+        assert_eq!(quest_reward_name(&blank), None);
+
+        assert_eq!(quest_reward_name(&serde_json::json!({})), None);
+    }
+
     #[test]
     fn play_and_stream_quests_are_told_apart() {
         let play = serde_json::json!({
@@ -3434,7 +3801,7 @@ mod tests {
             "id": "123",
             "config": {
                 "id": "123",
-                "expires_at": "2030-01-01T00:00:00Z",
+                "expires_at": "2023-12-01T00:00:00Z",
                 "messages": {"quest_name": "Stream quest"},
                 "task_config_v2": {
                     "tasks": {"STREAM_ON_DESKTOP": {"applications": [{"id": "999", "name": "Example"}]}}
@@ -3454,7 +3821,7 @@ mod tests {
             "id": "456",
             "config": {
                 "id": "456",
-                "expires_at": "2030-01-01T00:00:00Z",
+                "expires_at": "2023-12-01T00:00:00Z",
                 "messages": {"quest_name": "Play and stream quest"},
                 "task_config_v2": {
                     "tasks": {
@@ -3616,6 +3983,11 @@ mod tests {
             ],
             game_names: vec!["CAPCOM TGS Deals".to_string()],
             expires_at: 1800000000,
+            starts_at: 0,
+            reward: None,
+            publisher: None,
+            hero_image: None,
+            hero_video: None,
             play_task: true,
             stream_task: false,
         };
@@ -3675,6 +4047,11 @@ mod tests {
             ],
             game_names: vec!["CAPCOM TGS Deals".to_string()],
             expires_at: 1800000000,
+            starts_at: 0,
+            reward: None,
+            publisher: None,
+            hero_image: None,
+            hero_video: None,
             play_task: true,
             stream_task: false,
         };
@@ -3741,6 +4118,11 @@ mod tests {
             application_ids: vec!["1531874756096295054".to_string()],
             game_names: vec!["EA SPORTS FC™ 27".to_string()],
             expires_at: 1800000000,
+            starts_at: 0,
+            reward: None,
+            publisher: None,
+            hero_image: None,
+            hero_video: None,
             play_task: true,
             stream_task: false,
         };

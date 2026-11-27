@@ -5,6 +5,7 @@ import { Pages, useGlobalState } from './composables/state';
 import BulkCreateView from './pages/BulkCreateView.vue';
 import GamesView from './pages/GamesView.vue';
 import GeneratedGamesView from './pages/GeneratedGamesView.vue';
+import ActiveQuestsView from './pages/ActiveQuestsView.vue';
 import HomeView from './pages/HomeView.vue';
 import Playground from './pages/Playground.vue';
 import SettingsView from './pages/SettingsView.vue';
@@ -22,6 +23,7 @@ const { start: startPromoPresence } = usePromoPresence();
 const visibleNewGames = computed(() => newlyDetectedGames.value.slice(0, 12));
 const pageComponents: Record<Pages, Component> = {
   [Pages.HOME]: HomeView,
+  [Pages.ACTIVE_QUESTS]: ActiveQuestsView,
   [Pages.GAMES]: GamesView,
   [Pages.BULK_CREATE]: BulkCreateView,
   [Pages.GENERATED_GAMES]: GeneratedGamesView,

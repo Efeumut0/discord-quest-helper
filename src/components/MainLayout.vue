@@ -41,6 +41,15 @@ onMounted(async () => {
             <li>
               <a href="#"
                 class="text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400"
+                :class="{ 'text-indigo-600 dark:text-indigo-400': page === Pages.ACTIVE_QUESTS }"
+                @click.prevent="setPage(Pages.ACTIVE_QUESTS)"
+              >
+                {{ t('nav.activeQuests') }}
+              </a>
+            </li>
+            <li>
+              <a href="#"
+                class="text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400"
                 :class="{ 'text-indigo-600 dark:text-indigo-400': page === Pages.GAMES }"
                 @click.prevent="setPage(Pages.GAMES)"
               >

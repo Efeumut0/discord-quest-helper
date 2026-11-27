@@ -19,6 +19,7 @@ function clampSearchPriorityTargetCount(value: number) {
 }
 export const Pages = {
     HOME: 'home',
+    ACTIVE_QUESTS: 'active-quests',
     GAMES: 'games',
     BULK_CREATE: 'bulk-create',
     GENERATED_GAMES: 'generated-games',
