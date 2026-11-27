@@ -2,7 +2,7 @@
   "name": "discord-quest-helper",
   "description": "Discord Quest Helper",
   "private": true,
-  "version": "2026.11.2603",
+  "version": "2026.11.2701",
   "type": "module",
   "scripts": {
     "dev": "vite",
