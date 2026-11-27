@@ -87,15 +87,42 @@ const startAllCode = ts.transpileModule(startAllNode.getText(homeAst), { compile
 let starts = 0;
 let refreshes = 0;
 const starting = { value: false };
-const startAllGames = new Function('isStartingAllGames', 'isStoppingAllGames', 'gameList', 'getAllCandidateExecutables', 'isExecutableRunning', 'getExecutableLaunchPayload', 'playGame', 'installAndPlay', 'refreshGameProcessStates', 'addLog', 'errorMessage', `${startAllCode}; return startAllGames;`)(
-    starting, { value: false }, { value: [game] },
-    () => [{ ...exe('real.exe', '1.Source'), is_running: false }, { ...exe('real.exe'), is_running: true }],
-    () => false, exports.getExecutableLaunchPayload,
-    async () => { starts++; }, async () => { starts++; }, async () => { refreshes++; },
-    () => {}, String,
-);
+const streamOnlyNode = homeAst.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'isStreamOnlyGame');
+const streamOnlyCode = ts.transpileModule(streamOnlyNode.getText(homeAst), { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
+const isStreamOnlyGame = new Function(`${streamOnlyCode}; return isStreamOnlyGame;`)();
+assert.equal(isStreamOnlyGame({ has_stream_quest: true }), true);
+assert.equal(isStreamOnlyGame({ has_stream_quest: true, has_play_quest: true }), false, 'a quest that also asks for play stays playable');
+assert.equal(isStreamOnlyGame({ has_play_quest: true }), false);
+assert.equal(isStreamOnlyGame({}), false, 'a game added by hand is never treated as stream-only');
+
+function buildStartAll(games, candidates) {
+    return new Function('isStartingAllGames', 'isStoppingAllGames', 'gameList', 'isStreamOnlyGame', 'getAllCandidateExecutables', 'isExecutableRunning', 'getExecutableLaunchPayload', 'playGame', 'installAndPlay', 'refreshGameProcessStates', 'addLog', 'errorMessage', `${startAllCode}; return startAllGames;`)(
+        starting, { value: false }, { value: games }, isStreamOnlyGame,
+        () => candidates,
+        () => false, exports.getExecutableLaunchPayload,
+        async () => { starts++; }, async () => { starts++; }, async () => { refreshes++; },
+        () => {}, String,
+    );
+}
+
+const startAllGames = buildStartAll([game], [{ ...exe('real.exe', '1.Source'), is_running: false }, { ...exe('real.exe'), is_running: true }]);
 await startAllGames();
 assert.equal(starts, 0, 'an existing base-path process must prevent a second launch');
 assert.equal(starting.value, false);
 assert.equal(refreshes, 1);
 console.log('HomeView start-all respects running legacy base processes.');
+
+starts = 0;
+refreshes = 0;
+const streamOnlyGame = { ...game, has_stream_quest: true, has_play_quest: false };
+const startAllStreamOnly = buildStartAll([streamOnlyGame], [{ ...exe('real.exe', '1.Source'), is_running: false }]);
+await startAllStreamOnly();
+assert.equal(starts, 0, 'start-all must leave stream-only quest games alone');
+
+starts = 0;
+refreshes = 0;
+const bothKindsGame = { ...game, has_stream_quest: true, has_play_quest: true };
+const startAllBothKinds = buildStartAll([bothKindsGame], [{ ...exe('real.exe', '1.Source'), is_running: false }]);
+await startAllBothKinds();
+assert.equal(starts, 1, 'a game that also carries a play quest must still start');
+console.log('HomeView start-all skips stream-only quest games.');

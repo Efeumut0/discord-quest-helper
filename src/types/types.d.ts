@@ -20,6 +20,8 @@ export interface Game {
     third_party_skus?: { distributor?: string; id?: string }[];
     active_quest_ids?: string[];
     active_quest_names?: string[];
+    has_play_quest?: boolean;
+    has_stream_quest?: boolean;
     is_running?: boolean;
     is_installed?: boolean;
 }

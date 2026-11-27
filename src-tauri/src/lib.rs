@@ -596,6 +596,8 @@ struct ActiveQuestInfo {
     application_ids: Vec<String>,
     game_names: Vec<String>,
     expires_at: u64,
+    play_task: bool,
+    stream_task: bool,
 }
 
 #[derive(Serialize)]
@@ -608,6 +610,8 @@ struct ActiveQuestCreatedGame {
     match_method: String,
     match_score: u32,
     fallback_executable_used: bool,
+    has_play_quest: bool,
+    has_stream_quest: bool,
 }
 
 #[derive(Serialize)]
@@ -887,6 +891,48 @@ fn value_contains_desktop_task(value: &serde_json::Value) -> bool {
     }
 }
 
+/// Which desktop task types a quest carries. A quest can carry both, and the
+/// stream task needs the user to share the window in a voice channel, so the
+/// interface keeps the two apart.
+fn quest_task_kinds(value: &serde_json::Value) -> (bool, bool) {
+    fn mark(text: &str, play: &mut bool, stream: &mut bool) {
+        let normalized = text.to_ascii_uppercase();
+        if normalized.contains("STREAM_ON_DESKTOP")
+            || (normalized.contains("DESKTOP") && normalized.contains("STREAM"))
+        {
+            *stream = true;
+        }
+        if normalized.contains("PLAY_ON_DESKTOP")
+            || (normalized.contains("DESKTOP") && normalized.contains("PLAY"))
+        {
+            *play = true;
+        }
+    }
+
+    fn walk(value: &serde_json::Value, play: &mut bool, stream: &mut bool) {
+        match value {
+            serde_json::Value::String(text) => mark(text, play, stream),
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    walk(item, play, stream);
+                }
+            }
+            serde_json::Value::Object(map) => {
+                for (key, item) in map {
+                    mark(key, play, stream);
+                    walk(item, play, stream);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut play = false;
+    let mut stream = false;
+    walk(value, &mut play, &mut stream);
+    (play, stream)
+}
+
 fn quest_items_from_value(value: &serde_json::Value) -> Vec<serde_json::Value> {
     if let Some(items) = value.as_array() {
         return items.clone();
@@ -1085,6 +1131,12 @@ fn extract_active_desktop_quest(
     }
 
     let name = string_at(config, &["messages", "quest_name"]).unwrap_or_else(|| id.clone());
+    let (mut play_task, stream_task) = quest_task_kinds(config);
+    // An unrecognised desktop task is treated as a play task so it still shows
+    // in the main list; only a stream-only quest is moved aside.
+    if !play_task && !stream_task {
+        play_task = true;
+    }
 
     Some(ActiveQuestInfo {
         id,
@@ -1092,6 +1144,8 @@ fn extract_active_desktop_quest(
         application_ids,
         game_names,
         expires_at,
+        play_task,
+        stream_task,
     })
 }
 
@@ -1168,6 +1222,8 @@ async fn fetch_active_desktop_quests(
                             for name in &quest.game_names {
                                 push_unique(&mut existing.game_names, Some(name.clone()));
                             }
+                            existing.play_task |= quest.play_task;
+                            existing.stream_task |= quest.stream_task;
                         })
                         .or_insert(quest);
                 }
@@ -1213,6 +1269,8 @@ async fn fetch_active_desktop_quests(
                 for name in &detail_quest.game_names {
                     push_unique(&mut existing.game_names, Some(name.clone()));
                 }
+                existing.play_task |= detail_quest.play_task;
+                existing.stream_task |= detail_quest.stream_task;
             }
         }
     }
@@ -2649,6 +2707,8 @@ async fn create_active_quest_games(
             match_method: matched_game.match_method,
             match_score: matched_game.match_score,
             fallback_executable_used: matched_game.fallback_executable_used,
+            has_play_quest: matched_game.quests.iter().any(|quest| quest.play_task),
+            has_stream_quest: matched_game.quests.iter().any(|quest| quest.stream_task),
         });
     }
 
@@ -3348,6 +3408,69 @@ mod tests {
     use super::*;
 
     #[test]
+    fn play_and_stream_quests_are_told_apart() {
+        let play = serde_json::json!({
+            "task_config_v2": {"tasks": {"PLAY_ON_DESKTOP": {"applications": [{"id": "1"}]}}}
+        });
+        assert_eq!(quest_task_kinds(&play), (true, false));
+
+        let stream = serde_json::json!({
+            "task_config_v2": {"tasks": {"STREAM_ON_DESKTOP": {"applications": [{"id": "1"}]}}}
+        });
+        assert_eq!(quest_task_kinds(&stream), (false, true));
+
+        let both = serde_json::json!({
+            "taskConfig": {"tasks": {"PLAY_ON_DESKTOP": {}, "STREAM_ON_DESKTOP": {}}}
+        });
+        assert_eq!(quest_task_kinds(&both), (true, true));
+
+        let neither = serde_json::json!({"tasks": {"WATCH_VIDEO": {}}});
+        assert_eq!(quest_task_kinds(&neither), (false, false));
+    }
+
+    #[test]
+    fn a_stream_only_quest_is_not_marked_playable() {
+        let item = serde_json::json!({
+            "id": "123",
+            "config": {
+                "id": "123",
+                "expires_at": "2030-01-01T00:00:00Z",
+                "messages": {"quest_name": "Stream quest"},
+                "task_config_v2": {
+                    "tasks": {"STREAM_ON_DESKTOP": {"applications": [{"id": "999", "name": "Example"}]}}
+                }
+            }
+        });
+        let quest = extract_active_desktop_quest(&item, "Discord Public API", 1_700_000_000)
+            .expect("stream quest must be read");
+        assert!(!quest.play_task);
+        assert!(quest.stream_task);
+        assert_eq!(quest.application_ids, vec!["999".to_string()]);
+    }
+
+    #[test]
+    fn a_quest_with_both_tasks_stays_playable() {
+        let item = serde_json::json!({
+            "id": "456",
+            "config": {
+                "id": "456",
+                "expires_at": "2030-01-01T00:00:00Z",
+                "messages": {"quest_name": "Play and stream quest"},
+                "task_config_v2": {
+                    "tasks": {
+                        "PLAY_ON_DESKTOP": {"applications": [{"id": "777", "name": "Example"}]},
+                        "STREAM_ON_DESKTOP": {"applications": [{"id": "777", "name": "Example"}]}
+                    }
+                }
+            }
+        });
+        let quest = extract_active_desktop_quest(&item, "Discord Public API", 1_700_000_000)
+            .expect("quest must be read");
+        assert!(quest.play_task);
+        assert!(quest.stream_task);
+    }
+
+    #[test]
     fn rpc_is_embedded_only_for_the_second_source() {
         let app_id = "1445160676522856458";
         assert_eq!(
@@ -3493,6 +3616,8 @@ mod tests {
             ],
             game_names: vec!["CAPCOM TGS Deals".to_string()],
             expires_at: 1800000000,
+            play_task: true,
+            stream_task: false,
         };
 
         let games = vec![
@@ -3550,6 +3675,8 @@ mod tests {
             ],
             game_names: vec!["CAPCOM TGS Deals".to_string()],
             expires_at: 1800000000,
+            play_task: true,
+            stream_task: false,
         };
 
         let games = vec![
@@ -3614,6 +3741,8 @@ mod tests {
             application_ids: vec!["1531874756096295054".to_string()],
             game_names: vec!["EA SPORTS FC™ 27".to_string()],
             expires_at: 1800000000,
+            play_task: true,
+            stream_task: false,
         };
 
         let games = vec![

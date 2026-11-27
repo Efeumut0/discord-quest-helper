@@ -16,6 +16,7 @@ import TimedNotification from '@/components/TimedNotification.vue';
 import { LoaderCircle, Play, Square } from '@lucide/vue';
 import { getExecutableLaunchPayload, getProcessCandidateExecutables, getExecutablePath, getExecutableFilename } from '@/utils/game-executables';
 import { useSearchPriority } from '@/composables/search-priority';
+import { friendlyError } from '@/composables/friendly-errors';
 import { rankGames } from '@/utils/search-ranking';
 
 type DialogKey =
@@ -50,6 +51,8 @@ interface ActiveQuestCreatedGame {
     match_method: string;
     match_score: number;
     fallback_executable_used: boolean;
+    has_play_quest: boolean;
+    has_stream_quest: boolean;
 }
 
 interface ActiveQuestCreateResponse {
@@ -184,17 +187,35 @@ const selectedGame = computed(() => {
     return found || null;
 });
 
+// A quest can ask for play, for streaming, or for both. Only a stream-only game
+// is moved aside: it needs the user to share the window in a voice channel, so
+// starting it on its own achieves nothing.
+function isStreamOnlyGame(game: Game) {
+    return Boolean(game.has_stream_quest) && !game.has_play_quest;
+}
+
+const orderedGameList = computed(() => [
+    ...gameList.value.filter(game => !isStreamOnlyGame(game)),
+    ...gameList.value.filter(game => isStreamOnlyGame(game)),
+]);
+
+const streamSectionStart = computed(() =>
+    orderedGameList.value.findIndex(game => isStreamOnlyGame(game)),
+);
+
 const hasRunningGames = computed(() => gameList.value.some(game =>
     game.is_running || getAllCandidateExecutables(game).some(executable => executable.is_running || isExecutableRunning(executable)),
 ));
 
 const hasStartableGames = computed(() => gameList.value.some(game => {
+    if (isStreamOnlyGame(game)) return false;
     const candidates = getAllCandidateExecutables(game);
     return candidates.length > 0 && !candidates.some(executable => executable.is_running || isExecutableRunning(executable));
 }));
 
 function errorMessage(error: unknown) {
-    return error instanceof Error ? error.message : String(error);
+    const raw = error instanceof Error ? error.message : String(error);
+    return friendlyError(raw, t);
 }
 
 function formatMessage(template: string, values: Record<string, string | number>) {
@@ -420,7 +441,12 @@ function addGameToList(game: Game) {
     closeSearchResults();
 }
 
-function attachActiveQuestMetadata(gameId: string, questIds: string[], questNames: string[]) {
+function attachActiveQuestMetadata(
+    gameId: string,
+    questIds: string[],
+    questNames: string[],
+    kinds: { play: boolean; stream: boolean } = { play: true, stream: false },
+) {
     const targets = [
         gameList.value.find(item => item.id === gameId),
         gameDB.value.find(item => item.id === gameId),
@@ -437,6 +463,8 @@ function attachActiveQuestMetadata(gameId: string, questIds: string[], questName
         }
         game.active_quest_ids = Array.from(existingIds);
         game.active_quest_names = Array.from(existingNames);
+        game.has_play_quest = Boolean(game.has_play_quest) || kinds.play;
+        game.has_stream_quest = Boolean(game.has_stream_quest) || kinds.stream;
     }
 }
 
@@ -500,7 +528,10 @@ async function createActiveQuestGames() {
             if (!gameList.value.some(item => item.id === game.id)) {
                 gameList.value.push(createListGame(game));
             }
-            attachActiveQuestMetadata(createdGame.id, createdGame.quest_ids, createdGame.quest_names);
+            attachActiveQuestMetadata(createdGame.id, createdGame.quest_ids, createdGame.quest_names, {
+                play: createdGame.has_play_quest,
+                stream: createdGame.has_stream_quest,
+            });
         }
 
         if (response.matched_game_count === 0) {
@@ -705,6 +736,7 @@ async function startAllGames() {
     isStartingAllGames.value = true;
     try {
         for (const game of gameList.value) {
+            if (isStreamOnlyGame(game)) continue;
             const candidates = getAllCandidateExecutables(game);
             if (candidates.some(e => e.is_running || isExecutableRunning(e))) continue;
             const executable = candidates[0];
@@ -1112,7 +1144,17 @@ watch(() => gameDB.value.length, (gameCount) => {
                     {{ t('home.noGames') }}
                 </div>
                 <div v-else class="space-y-4">
-                    <div v-for="game in gameList" :key="game.id"
+                    <template v-for="(game, gameIndex) in orderedGameList" :key="game.id">
+                    <div v-if="streamSectionStart >= 0 && gameIndex === streamSectionStart" class="pt-4">
+                        <div class="border-t border-gray-200 dark:border-gray-700"></div>
+                        <h3 class="mt-3 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                            {{ t('home.streamQuestTitle') }}
+                        </h3>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            {{ t('home.streamQuestNote') }}
+                        </p>
+                    </div>
+                    <div
                         class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg
                         hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors
                         duration-200 ease-in-out"
@@ -1125,6 +1167,9 @@ watch(() => gameDB.value.length, (gameCount) => {
                         <div class="flex justify-between items-center">
                             <div class="flex items-center gap-1">
                                 <div class="font-medium text-gray-800 dark:text-white">{{ game.name }}</div>
+                                <span v-if="isStreamOnlyGame(game)" class="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                    {{ t('home.streamQuestBadge') }}
+                                </span>
                                 <div class="relative inline-flex items-center">
                                     <div class="w-2 h-2 bg-white absolute rounded-full" style="left: 50%; top: 50%; transform: translate(-50%, -50%)"></div>
                                     <div class="relative inline-block">
@@ -1165,6 +1210,7 @@ watch(() => gameDB.value.length, (gameCount) => {
                             </div>
                         </div>
                     </div>
+                    </template>
                 </div>
             </div>
 
