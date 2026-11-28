@@ -5,11 +5,13 @@ import IconRustLang from './IconRustLang.vue';
 import IconVueJs from './IconVueJs.vue';
 import UpdateNotice from './UpdateNotice.vue';
 import { getVersion } from '@tauri-apps/api/app';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { onMounted, shallowRef } from 'vue';
 
 const appState = useGlobalState();
 const { page, setPage, t } = appState;
 const { image: wallpaper, style: wallpaperStyle } = useWallpaper();
+const QUEST_PING_URL = 'https://top.gg/tr/bot/1435966296461148211';
 const version = shallowRef('');
 const releaseDate = shallowRef('');
 onMounted(async () => {
@@ -96,6 +98,14 @@ onMounted(async () => {
             </li>
           </ul>
         </nav>
+      </div>
+      <div class="app-frame pb-2 text-right text-xs text-gray-500 dark:text-gray-400">
+        {{ t('promo.questPing') }}
+        <a
+          href="#"
+          class="font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+          @click.prevent="openUrl(QUEST_PING_URL)"
+        >QuestPing</a>
       </div>
     </header>
 
